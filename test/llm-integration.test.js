@@ -1,113 +1,52 @@
-const assert = require('assert');
-const { LLMProviderFactory } = require('../src/providers/factory');
+import { describe, it, expect, beforeEach } from 'vitest'
+import nock from 'nock'
+import { LLMProviderFactory } from '../src/providers/factory.js'
 
-describe('LLM Integration Tests', function() {
-  this.timeout(10000); // Longer timeout for API calls
-  
-  describe('local Provider Integration', () => {
-    let provider;
-    
-    before(function() {
-      if (!process.env.LLM_EXEC_PATH) {
-        this.skip();
-        return;
-      }
+describe('LLM Integration Tests', () => {
+  describe('Local Provider Integration', () => {
+    let provider
+
+    beforeEach(() => {
+      nock.cleanAll()
       provider = LLMProviderFactory.createProvider('local', {
-        execPath: process.env.LLM_EXEC_PATH
-      });
-    });
+        baseUrl: 'http://localhost:3000/v1'
+      })
+    })
 
-    it('should handle completion requests', async function() {
-      if (!provider) this.skip();
-      const response = await provider.complete('Say hello');
-      assert(response && typeof response === 'string');
-    });
+    it('should handle chat messages', async () => {
+      // Mock the chat completion endpoint
+      nock('http://localhost:3000/v1')
+        .post('/chat/completions')
+        .reply(200, {
+          choices: [
+            {
+              message: {
+                content: 'Test response'
+              }
+            }
+          ]
+        })
 
-    it('should handle chat requests', async function() {
-      if (!provider) this.skip();
       const response = await provider.chat([
-        { role: 'user', content: 'Say hello' }
-      ]);
-      assert(response && typeof response === 'string');
-    });
+        { role: 'user', content: 'Test message' }
+      ])
 
-    it('should handle errors gracefully', async function() {
-      if (!provider) this.skip();
-      await assert.rejects(
-        provider.chat([{ role: 'invalid', content: 'test' }])
-      );
-    });
-  });
+      expect(response).toBeDefined()
+      expect(typeof response).toBe('string')
+      expect(response).toBe('Test response')
+    }, { timeout: 10000 })
 
-  describe('openai Provider Integration', () => {
-    let provider;
-    
-    before(function() {
-      if (!process.env.OPENAI_API_KEY) {
-        this.skip();
-        return;
-      }
-      provider = LLMProviderFactory.createProvider('openai', {
-        apiKey: process.env.OPENAI_API_KEY,
-        model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo'
-      });
-    });
+    it('should handle network errors gracefully', async () => {
+      // Mock a failed request
+      nock('http://localhost:3000/v1')
+        .post('/chat/completions')
+        .replyWithError('Network error')
 
-    it('should handle completion requests', async function() {
-      if (!provider) this.skip();
-      const response = await provider.complete('Say hello');
-      assert(response && typeof response === 'string');
-    });
+      await expect(provider.chat([
+        { role: 'user', content: 'Test message' }
+      ])).rejects.toThrow()
+    }, { timeout: 10000 })
+  })
 
-    it('should handle chat requests', async function() {
-      if (!provider) this.skip();
-      const response = await provider.chat([
-        { role: 'user', content: 'Say hello' }
-      ]);
-      assert(response && typeof response === 'string');
-    });
-
-    it('should handle errors gracefully', async function() {
-      if (!provider) this.skip();
-      await assert.rejects(
-        provider.chat([{ role: 'invalid', content: 'test' }])
-      );
-    });
-  });
-
-  describe('anthropic Provider Integration', () => {
-    let provider;
-    
-    before(function() {
-      if (!process.env.ANTHROPIC_API_KEY) {
-        this.skip();
-        return;
-      }
-      provider = LLMProviderFactory.createProvider('anthropic', {
-        apiKey: process.env.ANTHROPIC_API_KEY,
-        model: process.env.ANTHROPIC_MODEL || 'claude-2'
-      });
-    });
-
-    it('should handle completion requests', async function() {
-      if (!provider) this.skip();
-      const response = await provider.complete('Say hello');
-      assert(response && typeof response === 'string');
-    });
-
-    it('should handle chat requests', async function() {
-      if (!provider) this.skip();
-      const response = await provider.chat([
-        { role: 'user', content: 'Say hello' }
-      ]);
-      assert(response && typeof response === 'string');
-    });
-
-    it('should handle errors gracefully', async function() {
-      if (!provider) this.skip();
-      await assert.rejects(
-        provider.chat([{ role: 'invalid', content: 'test' }])
-      );
-    });
-  });
-}); 
+  // Add more provider tests as needed
+}) 

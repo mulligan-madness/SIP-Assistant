@@ -4,6 +4,8 @@ const debug = require('debug')('chatbot:scraper');
 class DiscourseScraper {
   constructor(baseUrl, options = {}) {
     this.baseUrl = baseUrl;
+    this.categories = [];
+    this.posts = [];
     this.options = {
       maxRetries: options.maxRetries || 3,
       retryDelay: options.retryDelay || 1000,
@@ -136,12 +138,22 @@ class DiscourseScraper {
   async test() {
     try {
       debug('Running scraper test');
-      const testUrl = `${this.baseUrl}/latest.json?page=0`;
+      const testUrl = `${this.baseUrl}/site.json`;
       const data = await this.fetchWithRetry(testUrl);
+      
+      if (!data.about?.title) {
+        return {
+          success: false,
+          message: 'Invalid forum response - missing title',
+          error: new Error('Invalid forum response structure')
+        };
+      }
+      
       return {
         success: true,
         message: 'Successfully connected to forum',
-        topicsFound: data.topic_list.topics.length
+        title: data.about.title,
+        description: data.about.description
       };
     } catch (error) {
       return {
@@ -149,6 +161,20 @@ class DiscourseScraper {
         message: `Test failed: ${error.message}`,
         error
       };
+    }
+  }
+
+  async getCategories() {
+    try {
+      const url = `${this.baseUrl}/categories.json`;
+      const data = await this.fetchWithRetry(url);
+      if (data && data.category_list && data.category_list.categories) {
+        return data.category_list.categories;
+      } else {
+        throw new Error('Invalid categories response structure');
+      }
+    } catch (error) {
+      throw error;
     }
   }
 }

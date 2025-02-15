@@ -11,6 +11,10 @@ const Spinner = require('./utils/spinner');
 const { DiscourseScraper } = require('./scraper');
 const { Storage } = require('./storage');
 const { LLMProviderFactory } = require('./providers/factory');
+const helmet = require('helmet');
+const cors = require('cors');
+const { body, validationResult } = require('express-validator');
+const rateLimit = require('express-rate-limit');
 
 // Load environment variables
 const envPath = path.join(__dirname, '..', '.env');
@@ -25,25 +29,357 @@ const port = 3000;
 
 // Middleware
 app.use(bodyParser.json());
-app.use((req, res, next) => next());
 
-// Root endpoint
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "cdnjs.cloudflare.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "cdnjs.cloudflare.com"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+}));
+app.use(cors({
+  origin: process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : process.env.FRONTEND_URL,
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type']
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+});
+app.use('/api/', limiter);
+
+// Request size limits
+app.use(express.json({ limit: '1mb' }));
+
+// Input validation middleware
+const validateChatInput = [
+  body('message').trim().notEmpty().withMessage('Message cannot be empty'),
+  body('sessionId').trim().notEmpty().withMessage('Session ID is required'),
+];
+
+const validateProviderInput = [
+  body('provider').isIn(['1', '2', '3']).withMessage('Invalid provider selection'),
+];
+
+// Centralized error handling
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  const statusCode = err.status || 500;
+  const userMessage = err.userMessage || 'An unexpected error occurred';
+  
+  // Log error details for monitoring
+  console.error({
+    timestamp: new Date().toISOString(),
+    error: err.message,
+    stack: err.stack,
+    statusCode,
+    path: req.path
+  });
+
+  res.status(statusCode).json({
+    error: err.message,
+    userMessage
+  });
 });
 
-// Static middleware
-app.use(express.static(path.join(__dirname, '..', 'public')));
-
-// Test endpoint
-app.get('/test', (req, res) => {
-  res.json({ message: 'Server is working!' });
-});
-
-// Load the scraped SIP data
-const compressedContextPath = path.join(__dirname, '..', 'output', 'compressed-context.md');
+// Initialize server state
 let sipData = [];
 let compressedContext = null;
+let isInitialized = false;
+let llmInitialized = false;
+const compressedContextPath = path.join(__dirname, '..', 'output', 'compressed-context.md');
+
+// Serve static files from the Vue.js build directory
+app.use(express.static(path.join(__dirname, '..', 'dist')));
+
+// Modified middleware to check initialization
+app.use('/api', (req, res, next) => {
+  if (!llmInitialized && req.path !== '/init-llm' && req.path !== '/status') {
+    return res.status(503).json({
+      error: 'LLM not initialized',
+      userMessage: 'Please initialize the LLM provider first.'
+    });
+  }
+  next();
+});
+
+// New endpoint to initialize LLM
+app.post('/api/init-llm', validateProviderInput, async (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Validation error',
+      userMessage: errors.array()[0].msg
+    });
+  }
+
+  try {
+    const { provider } = req.body;
+    if (!['1', '2', '3'].includes(provider)) {
+      return res.status(400).json({
+        error: 'Invalid provider',
+        userMessage: 'Please select a valid provider (1, 2, or 3)'
+      });
+    }
+
+    const providerConfig = {
+      '1': {
+        provider: 'local',
+        config: {
+          model: process.env.LOCAL_LLM_MODEL || 'phi-4',
+          temperature: 0.7,
+          maxTokens: 15000,
+          baseUrl: process.env.LOCAL_LLM_BASE_URL,
+          execPath: process.env.LOCAL_LLM_EXEC_PATH
+        }
+      },
+      '2': {
+        provider: 'openai',
+        config: {
+          apiKey: process.env.OPENAI_API_KEY,
+          model: process.env.OPENAI_MODEL
+        }
+      },
+      '3': {
+        provider: 'anthropic',
+        config: {
+          apiKey: process.env.ANTHROPIC_API_KEY,
+          model: process.env.ANTHROPIC_MODEL
+        }
+      }
+    };
+
+    global.llmProvider = LLMProviderFactory.createProvider(
+      providerConfig[provider].provider,
+      providerConfig[provider].config
+    );
+
+    llmInitialized = true;
+    res.json({ success: true, provider: providerConfig[provider].provider });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Modified status endpoint to check for existing context
+app.get('/api/status', (req, res) => {
+  let existingContextAvailable = false;
+  try {
+    fs.accessSync(compressedContextPath);
+    existingContextAvailable = true;
+  } catch (err) {
+    // File doesn't exist
+  }
+
+  res.json({
+    llmInitialized,
+    dataLoaded: sipData.length > 0,
+    contextCompressed: !!compressedContext,
+    existingContextAvailable
+  });
+});
+
+// New endpoint to load or rescrape data
+app.post('/api/load-data', async (req, res) => {
+  try {
+    const { rescrape } = req.body;
+    const storage = new Storage();
+    const scraper = new DiscourseScraper(process.env.FORUM_BASE_URL, { debug: true });
+
+    if (rescrape) {
+      console.log('Starting fresh forum scrape...');
+      const scrapedData = await scraper.scrapeAll();
+      await storage.saveScrapeResult(scrapedData);
+      sipData = scrapedData.posts;
+      console.log('Forum scrape completed successfully');
+    } else {
+      const latestData = await storage.getLatestScrape();
+      if (!latestData) {
+        return res.status(404).json({
+          error: 'No existing data',
+          userMessage: 'No existing data found. Please scrape the forum.'
+        });
+      }
+      sipData = latestData.posts;
+      console.log('Using existing SIP data');
+    }
+
+    res.json({
+      success: true,
+      count: sipData.length
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to load data',
+      userMessage: error.message
+    });
+  }
+});
+
+// New endpoint to generate compressed context
+app.post('/api/generate-context', async (req, res) => {
+  try {
+    if (!llmInitialized) {
+      return res.status(503).json({
+        error: 'LLM not initialized',
+        userMessage: 'Please initialize the LLM provider first.'
+      });
+    }
+
+    if (sipData.length === 0) {
+      return res.status(503).json({
+        error: 'No data loaded',
+        userMessage: 'Please load or scrape the forum data first.'
+      });
+    }
+
+    console.log('Generating new compressed context...');
+    compressedContext = await compressSIPDataWithLLM(sipData);
+    saveCompressedContext();
+
+    res.json({
+      success: true,
+      preview: compressedContext.substring(0, 500) + '...'
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to generate context',
+      userMessage: error.message
+    });
+  }
+});
+
+// New endpoint to load existing context
+app.post('/api/load-context', async (req, res) => {
+  try {
+    if (!fs.existsSync(compressedContextPath)) {
+      return res.status(404).json({
+        error: 'No existing context',
+        userMessage: 'No existing context found. Please generate new context.'
+      });
+    }
+
+    const existingContext = fs.readFileSync(compressedContextPath, 'utf8');
+    compressedContext = existingContext.split('---')[2].trim();
+    console.log('Loaded existing compressed context');
+
+    res.json({
+      success: true,
+      preview: compressedContext.substring(0, 500) + '...'
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to load existing context',
+      userMessage: error.message
+    });
+  }
+});
+
+// Chat endpoint
+app.post('/chat', validateChatInput, async (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Validation error',
+      userMessage: errors.array()[0].msg
+    });
+  }
+
+  if (!llmInitialized || !compressedContext) {
+    return res.status(503).json({
+      error: 'Server not fully initialized',
+      userMessage: 'Please complete the initialization steps before chatting.'
+    });
+  }
+  
+  try {
+    // Get or create chat history for this session
+    const sessionId = req.body.sessionId || 'default';
+    if (!chatHistories.has(sessionId)) {
+      chatHistories.set(sessionId, []);
+    }
+    const history = chatHistories.get(sessionId);
+
+    if (!req.body || !req.body.message) {
+      return res.status(400).json({ 
+        error: 'Missing message in request body',
+        userMessage: 'Please provide a message to chat about.'
+      });
+    }
+
+    // Prepare messages
+    const messages = [
+      { role: 'system', content: compressedContext },
+      ...history,
+      { role: 'user', content: req.body.message }
+    ];
+
+    try {
+      const response = await global.llmProvider.chat(messages);
+      
+      // Update history with this exchange
+      history.push(
+        { role: 'user', content: req.body.message },
+        { role: 'assistant', content: response }
+      );
+
+      res.json({ response });
+    } catch (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.error('Chat processing error:', error);
+    
+    let userMessage = 'An unexpected error occurred. Please try again later.';
+    let statusCode = 500;
+    
+    if (error.code === 'ECONNREFUSED') {
+      statusCode = 503;
+      userMessage = 'Could not connect to LMStudio. Please ensure LMStudio is running and the API is enabled.';
+    } else if (error.response?.status === 429) {
+      statusCode = 429;
+      userMessage = 'The service is currently busy. Please try again in a moment.';
+    } else if (error.message.includes('API key')) {
+      statusCode = 401;
+      userMessage = 'There was an authentication error with the AI service.';
+    } else if (error.message.includes('timeout')) {
+      statusCode = 504;
+      userMessage = 'The request timed out. Please try again.';
+    }
+
+    res.status(statusCode).json({ 
+      error: 'Error processing chat request',
+      userMessage
+    });
+  }
+});
+
+// Serve index.html for all other routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
+});
+
+// Start the server only if this file is run directly
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+    console.log('Server is ready to initialize components...');
+  });
+}
+
+// Export the app for testing
+module.exports = app;
 
 // Add readline interface
 const rl = readline.createInterface({
@@ -68,111 +404,107 @@ process.on('SIGINT', () => {
 async function initializeData() {
   try {
     const storage = new Storage();
+    const isDev = process.env.NODE_ENV === 'development';
+    const scraper = new DiscourseScraper(process.env.FORUM_BASE_URL, { debug: true });
     
-    // Ask about scraping the forum
-    const scrapeAnswer = await question(
-      'Would you like to scrape the forum for new SIPs?\n' +
-      '1. Yes, scrape forum\n' +
-      '2. No, use existing data\n' +
-      'Enter 1 or 2: '
-    );
+    // Check for existing data
+    const latestData = await storage.getLatestScrape();
+    let sipData;
+    
+    if (latestData) {
+      const rescrapeAnswer = await question(
+        '\nExisting SIP data found. Would you like to:\n' +
+        '1. Use existing data\n' +
+        '2. Rescrape forum for fresh data\n' +
+        'Enter 1 or 2: '
+      );
 
-    if (scrapeAnswer === '1') {
-      const scraper = new DiscourseScraper('https://forum.rare.xyz', { 
-        debug: true,
-        rateLimit: 2000 
-      });
-      
-      const spinner = new Spinner('Testing forum connection...');
-      spinner.start();
-      
-      try {
-        // Test connection first
-        const testResult = await scraper.test();
-        if (!testResult.success) {
-          spinner.stop();
-          console.error('Forum connection test failed:', testResult.message);
-          console.log('Falling back to existing data...');
-        } else {
-          spinner.stop();
-          console.log('Forum connection successful. Starting scrape...');
-          spinner.text = 'Scraping forum...';
-          spinner.start();
-          
-          const scrapedData = await scraper.scrapeAll();
-          await storage.saveScrapeResult(scrapedData);
-          sipData = scrapedData.posts;
-          
-          spinner.stop();
-          console.log(`Scraping completed. Found ${sipData.length} SIP posts`);
-        }
-      } catch (error) {
-        spinner.stop();
-        console.error('Error during forum scraping:', error);
-        console.log('Falling back to existing data...');
+      if (rescrapeAnswer.trim() === '2') {
+        console.log('\nStarting forum scrape...');
+        const scrapedData = await scraper.scrapeAll();
+        await storage.saveScrapeResult(scrapedData);
+        sipData = scrapedData.posts;
+        console.log('Forum scrape completed successfully');
+      } else if (rescrapeAnswer.trim() === '1') {
+        sipData = latestData.posts;
+        console.log('Using existing SIP data');
+      } else {
+        throw new Error('Invalid selection. Please enter 1 or 2.');
       }
+    } else {
+      console.log('No existing SIP data found. Starting fresh forum scrape...');
+      const scrapedData = await scraper.scrapeAll();
+      await storage.saveScrapeResult(scrapedData);
+      sipData = scrapedData.posts;
+      console.log('Forum scrape completed successfully');
     }
-
-    // If no scrape or scrape failed, load latest data
-    if (!sipData || sipData.length === 0) {
-      const latestData = await storage.getLatestScrape();
-      if (!latestData) {
-        throw new Error('No existing SIP data found');
-      }
-      sipData = latestData.posts;
-      console.log('Loaded existing SIP data');
-    }
-
+    
     console.log('Number of SIPs loaded:', sipData.length);
 
-    // Define provider config
-    const providerConfig = {
-      local: {
+    // Configure LLM provider
+    let chosenConfig;
+    if (isDev) {
+      // In development, use local provider by default
+      chosenConfig = {
         provider: 'local',
         config: {
-          model: process.env.LLM_MODEL || 'phi-4',
+          model: process.env.LOCAL_LLM_MODEL || 'phi-4',
           temperature: 0.7,
-          maxTokens: 15000
+          maxTokens: 15000,
+          baseUrl: process.env.LOCAL_LLM_BASE_URL || 'http://localhost:1234/v1',
+          execPath: process.env.LOCAL_LLM_EXEC_PATH
         }
-      },
-      openai: {
-        provider: 'openai',
-        config: {
-          apiKey: process.env.OPENAI_API_KEY,
-          model: process.env.OPENAI_MODEL
+      };
+    } else {
+      // In production, use the configured provider or ask for selection
+      const providerConfig = {
+        local: {
+          provider: 'local',
+          config: {
+            model: process.env.LOCAL_LLM_MODEL || 'phi-4',
+            temperature: 0.7,
+            maxTokens: 15000,
+            baseUrl: process.env.LOCAL_LLM_BASE_URL,
+            execPath: process.env.LOCAL_LLM_EXEC_PATH
+          }
+        },
+        openai: {
+          provider: 'openai',
+          config: {
+            apiKey: process.env.OPENAI_API_KEY,
+            model: process.env.OPENAI_MODEL
+          }
+        },
+        anthropic: {
+          provider: 'anthropic',
+          config: {
+            apiKey: process.env.ANTHROPIC_API_KEY,
+            model: process.env.ANTHROPIC_MODEL
+          }
         }
-      },
-      anthropic: {
-        provider: 'anthropic',
-        config: {
-          apiKey: process.env.ANTHROPIC_API_KEY,
-          model: process.env.ANTHROPIC_MODEL
-        }
+      };
+
+      const providerAnswer = await question(
+        '\nWhich LLM provider would you like to use?\n' +
+        `1. Local (LMStudio - ${providerConfig.local.config.model})\n` +
+        `2. OpenAI (${process.env.OPENAI_MODEL})\n` +
+        `3. Anthropic (${process.env.ANTHROPIC_MODEL})\n` +
+        'Enter 1, 2, or 3: '
+      );
+
+      switch(providerAnswer.trim()) {
+        case '1':
+          chosenConfig = providerConfig.local;
+          break;
+        case '2':
+          chosenConfig = providerConfig.openai;
+          break;
+        case '3':
+          chosenConfig = providerConfig.anthropic;
+          break;
+        default:
+          throw new Error('Invalid provider selection. Please enter 1, 2, or 3.');
       }
-    };
-
-    const providerAnswer = await question(
-      '\nWhich LLM provider would you like to use?\n' +
-      `1. Local (LMStudio - ${providerConfig.local.config.model})\n` +
-      `2. OpenAI (${process.env.OPENAI_MODEL})\n` +
-      `3. Anthropic (${process.env.ANTHROPIC_MODEL})\n` +
-      'Enter 1, 2, or 3: '
-    );
-
-    // Update provider selection
-    let chosenConfig;
-    switch(providerAnswer.trim()) {
-      case '1':
-        chosenConfig = providerConfig.local;
-        break;
-      case '2':
-        chosenConfig = providerConfig.openai;
-        break;
-      case '3':
-        chosenConfig = providerConfig.anthropic;
-        break;
-      default:
-        throw new Error('Invalid provider selection. Please enter 1, 2, or 3.');
     }
 
     global.llmProvider = LLMProviderFactory.createProvider(
@@ -180,7 +512,7 @@ async function initializeData() {
       chosenConfig.config
     );
 
-    // THEN check for existing compressed context
+    // Load or generate compressed context
     let existingContextExists = false;
     try {
       fs.accessSync(compressedContextPath);
@@ -190,38 +522,26 @@ async function initializeData() {
     }
 
     if (existingContextExists) {
-      const answer = await question(
-        'Found existing compressed context. Would you like to:\n' +
-        '1. Load existing compression\n' +
-        '2. Generate new compression\n' +
-        'Enter 1 or 2: '
-      );
-
-      if (answer === '1') {
-        const existingContext = fs.readFileSync(compressedContextPath, 'utf8');
-        // Extract content after frontmatter (everything after the first ---)
-        compressedContext = existingContext.split('---')[2].trim();
-        console.log('Loaded existing compressed context');
-      } else {
-        console.log('Generating new compression...');
-        compressedContext = await compressSIPDataWithLLM(sipData);
-        saveCompressedContext();
-      }
+      const existingContext = fs.readFileSync(compressedContextPath, 'utf8');
+      compressedContext = existingContext.split('---')[2].trim();
+      console.log('Loaded existing compressed context');
     } else {
       console.log('No existing compressed context found, generating new one...');
       compressedContext = await compressSIPDataWithLLM(sipData);
       saveCompressedContext();
     }
 
-    // Log the first part of the compressed context
     console.log('Compressed context preview:', 
       compressedContext.substring(0, 500) + '...');
 
-    rl.close();
+    if (!isDev && rl) {
+      rl.close();
+    }
 
+    console.log('Server initialization complete!');
   } catch (err) {
     console.error('Error initializing data:', err);
-    process.exit(1);
+    throw err;
   }
 }
 
@@ -325,13 +645,6 @@ function saveCompressedContext() {
   console.log('Saved new compressed context to disk as markdown');
 }
 
-// Call initialization when starting the server
-initializeData().then(() => {
-  app.listen(port, () => {
-    console.log(`Chatbot server running at http://localhost:${port}`);
-  });
-});
-
 async function compressSIPDataWithLLM(sips, maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -430,165 +743,3 @@ async function compressSIPDataWithLLM(sips, maxRetries = 3) {
 
 // Store chat histories by session
 const chatHistories = new Map();
-
-// Update the chat endpoint
-app.post('/chat', async (req, res) => {
-  try {
-    debug('LLM Provider details:', {
-      type: global.llmProvider?.constructor.name,
-      config: global.llmProvider?.config,
-      initialized: !!global.llmProvider
-    });
-
-    // Get or create chat history for this session
-    const sessionId = req.body.sessionId || 'default';
-    if (!chatHistories.has(sessionId)) {
-      chatHistories.set(sessionId, []);
-    }
-    const history = chatHistories.get(sessionId);
-
-    if (!req.body || !req.body.message) {
-      debug('Missing message in request');
-      return res.status(400).json({ 
-        error: 'Missing message in request body',
-        userMessage: 'Please provide a message to chat about.'
-      });
-    }
-
-    if (!global.llmProvider) {
-      debug('Provider initialization failed. Current state:', {
-        provider: global.llmProvider,
-        env: {
-          LLM_PROVIDER: process.env.LLM_PROVIDER,
-          OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
-          ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY
-        }
-      });
-      return res.status(500).json({ 
-        error: 'LLM provider not initialized',
-        userMessage: 'The chat service is not properly initialized. Please try refreshing the page or contact support.'
-      });
-    }
-
-    if (!compressedContext) {
-      debug('Context not initialized');
-      return res.status(500).json({ 
-        error: 'Context not initialized',
-        userMessage: 'The chat service is still loading. Please try again in a moment.'
-      });
-    }
-
-    // Prepare messages BEFORE logging them
-    const messages = [
-      { role: 'system', content: compressedContext },
-      ...history,
-      { role: 'user', content: req.body.message }
-    ];
-
-    // Add logging for LLM provider type
-    debug('Using LLM provider:', global.llmProvider.constructor.name);
-    debug('Provider configuration:', {
-      type: global.llmProvider.constructor.name,
-      baseUrl: global.llmProvider.config?.baseUrl,
-      model: global.llmProvider.config?.model
-    });
-
-    debug('Preparing chat request:', {
-      messageCount: messages.length,
-      lastMessage: req.body.message,
-      systemMessagePreview: messages[0].content.substring(0, 100) + '...'
-    });
-
-    // For local provider, test connection before sending request
-    if (global.llmProvider.constructor.name === 'LocalProvider') {
-      try {
-        debug('Testing LMStudio connection...');
-        // Test connection to LMStudio
-        const testResponse = await axios.get('http://localhost:1234/v1/models');
-        debug('LMStudio connection test response:', testResponse.data);
-        debug('Successfully connected to LMStudio');
-      } catch (error) {
-        debug('LMStudio connection test failed:', {
-          error: error.message,
-          code: error.code,
-          response: error.response?.data
-        });
-        debug('Failed to connect to LMStudio:', error);
-        return res.status(503).json({
-          error: 'LMStudio Connection Error',
-          userMessage: 'Could not connect to LMStudio. Please ensure LMStudio is running on port 1234 and try again.',
-          details: error.message
-        });
-      }
-    }
-
-    debug('Sending request to LLM provider');
-    
-    try {
-      debug('Calling provider.chat() with messages');
-      const response = await global.llmProvider.chat(messages);
-      debug('Received successful response from LLM');
-      
-      // Update history with this exchange
-      history.push(
-        { role: 'user', content: req.body.message },
-        { role: 'assistant', content: response }
-      );
-
-      debug('Received response from LLM');
-      res.json({ response });
-    } catch (error) {
-      debug('LLM request failed:', {
-        error: error.message,
-        code: error.code,
-        response: error.response?.data,
-        stack: error.stack
-      });
-      throw error; // Re-throw to be caught by outer catch block
-    }
-
-  } catch (error) {
-    debug('Chat processing error:', {
-      error: error.message,
-      code: error.code,
-      type: error.constructor.name,
-      provider: global.llmProvider?.constructor.name,
-      stack: error.stack
-    });
-    
-    // Enhanced error handling with more specific messages
-    let userMessage = 'An unexpected error occurred. Please try again later.';
-    let statusCode = 500;
-    
-    if (error.code === 'ECONNREFUSED') {
-      statusCode = 503;
-      userMessage = 'Could not connect to LMStudio. Please ensure LMStudio is running and the API is enabled.';
-    } else if (error.response?.status === 429) {
-      statusCode = 429;
-      userMessage = 'The service is currently busy. Please try again in a moment.';
-    } else if (error.message.includes('API key')) {
-      statusCode = 401;
-      userMessage = 'There was an authentication error with the AI service.';
-    } else if (error.message.includes('timeout')) {
-      statusCode = 504;
-      userMessage = 'The request timed out. Please try again.';
-    }
-
-    res.status(statusCode).json({ 
-      error: 'Error processing chat request',
-      details: error.message,
-      userMessage,
-      provider: global.llmProvider?.constructor.name,
-      debug: {
-        errorType: error.constructor.name,
-        errorCode: error.code,
-        providerType: global.llmProvider?.constructor.name,
-        providerConfig: {
-          baseUrl: global.llmProvider?.config?.baseUrl,
-          model: global.llmProvider?.config?.model
-        },
-        stack: error.stack
-      }
-    });
-  }
-});

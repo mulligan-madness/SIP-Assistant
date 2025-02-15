@@ -1,2 +1,2 @@
-# SIP-assistant
- a chat based utility for drafting and editing superrare improvement proposals
+# SIP-Assistant
+ chat based utilities for drafting superrare improvement proposals

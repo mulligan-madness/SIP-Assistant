@@ -60,6 +60,10 @@ coverage/
 # Nuxt.js build output
 .nuxt
 
+# Application specific output
+output/
+!output/.gitkeep
+
 # Application specific
 output/*.json
 output/*.md

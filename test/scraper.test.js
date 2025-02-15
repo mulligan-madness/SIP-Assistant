@@ -75,6 +75,51 @@ describe('DiscourseScraper', function() {
   
   describe('scrapeAll', () => {
     it('should fetch and filter SIP posts', async () => {
+      nock.cleanAll();
+      
+      const mockTopics = {
+        topic_list: {
+          topics: [
+            {
+              id: 1,
+              title: '[SIP-001] Test Proposal',
+              slug: 'sip-001-test-proposal',
+              created_at: '2024-02-20T10:00:00Z'
+            },
+            {
+              id: 2,
+              title: 'Not a SIP',
+              slug: 'not-a-sip',
+              created_at: '2024-02-20T11:00:00Z'
+            },
+            {
+              id: 3,
+              title: '[SIP-002] Another Test',
+              slug: 'sip-002-another-test',
+              created_at: '2024-02-20T12:00:00Z'
+            }
+          ],
+          more_topics_url: null
+        }
+      };
+
+      const mockContent = {
+        post_stream: {
+          posts: [{
+            cooked: '<p>Test content</p>'
+          }]
+        }
+      };
+
+      nock('https://forum.rare.xyz')
+        .get('/c/proposals/18.json')
+        .query(true)
+        .reply(200, mockTopics)
+        .get('/t/1.json')
+        .reply(200, mockContent)
+        .get('/t/3.json')
+        .reply(200, mockContent);
+      
       const result = await scraper.scrapeAll();
       
       assert(Array.isArray(result.posts), 'Should return an array of posts');
@@ -84,12 +129,11 @@ describe('DiscourseScraper', function() {
       assert.strictEqual(firstPost.id, 1);
       assert.strictEqual(firstPost.t, '[SIP-001] Test Proposal');
       assert(firstPost.d, 'Should have a date');
-      assert(firstPost.c, 'Should have content');
+      assert.strictEqual(firstPost.c, '<p>Test content</p>', 'Should have correct content');
       assert(firstPost.url.includes('sip-001-test-proposal'), 'Should have correct URL');
     });
     
     it('should handle pagination', async () => {
-      // Mock multiple pages
       nock.cleanAll();
       
       const page1 = {
@@ -131,33 +175,63 @@ describe('DiscourseScraper', function() {
           more_topics_url: null
         }
       };
+
+      const mockContent = {
+        post_stream: {
+          posts: [{
+            cooked: '<p>Test content</p>'
+          }]
+        }
+      };
       
       nock('https://forum.rare.xyz')
-        .get('/latest.json')
+        .get('/c/proposals/18.json')
         .query({ page: 0 })
         .reply(200, page1)
-        .get('/latest.json')
+        .get('/c/proposals/18.json')
         .query({ page: 1 })
         .reply(200, page2)
-        .get(/\/t\/\d+\.json/)
-        .times(4)
-        .reply(200, mockForumResponses.topicContent);
+        .get('/t/1.json')
+        .reply(200, mockContent)
+        .get('/t/2.json')
+        .reply(200, mockContent)
+        .get('/t/3.json')
+        .reply(200, mockContent)
+        .get('/t/4.json')
+        .reply(200, mockContent);
         
       const result = await scraper.scrapeAll();
       assert.strictEqual(result.posts.length, 4, 'Should find 4 SIP posts across pages');
+      assert(result.posts.every(p => p.c === '<p>Test content</p>'), 'All posts should have content');
     });
     
     it('should handle failed content fetches', async () => {
       nock.cleanAll();
       
+      const mockTopics = {
+        topic_list: {
+          topics: [
+            {
+              id: 1,
+              title: '[SIP-001] Test',
+              slug: 'sip-001',
+              created_at: '2024-02-20T10:00:00Z'
+            }
+          ],
+          more_topics_url: null
+        }
+      };
+      
       nock('https://forum.rare.xyz')
-        .get('/latest.json').query(true)
-        .reply(200, mockForumResponses.latestPage)
-        .get(/\/t\/\d+\.json/)
+        .get('/c/proposals/18.json')
+        .query(true)
+        .reply(200, mockTopics)
+        .get('/t/1.json')
         .reply(500);
         
       const result = await scraper.scrapeAll();
-      assert.strictEqual(result.posts[0].c, '[Content fetch failed]');
+      assert.strictEqual(result.posts[0].c, '[Content fetch failed]', 'Should handle failed content fetch');
+      assert.strictEqual(result.posts[0].t, '[SIP-001] Test', 'Should still have title');
     });
   });
   

@@ -1,51 +1,47 @@
+const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
-require('dotenv').config();
-const fs = require('fs');
-const path = require('path');
 const readline = require('readline');
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 const Spinner = require('./utils/spinner');
-const { DiscourseScraper } = require('./src/scraper');
-const { Storage } = require('./src/storage');
-const { LLMProviderFactory } = require('./src/providers/factory');
-const config = require('./config');
-const { Logger } = require('./src/utils/logger');
-const logger = new Logger('chat');
-const debug = require('debug')('chatbot:llm');
+const { DiscourseScraper } = require('./scraper');
+const { Storage } = require('./storage');
+const { LLMProviderFactory } = require('./providers/factory');
+
+// Load environment variables
+const envPath = path.join(__dirname, '..', '.env');
+if (!fs.existsSync(envPath)) {
+  console.error('.env file not found at:', envPath);
+  process.exit(1);
+}
+require('dotenv').config({ path: envPath });
 
 const app = express();
 const port = 3000;
 
 // Middleware
 app.use(bodyParser.json());
-app.use((req, res, next) => {
-  console.log('Incoming request:', req.method, req.path);
-  next();
-});
+app.use((req, res, next) => next());
 
-// Root endpoint first
+// Root endpoint
 app.get('/', (req, res) => {
-  console.log('Root endpoint hit');
-  // Let the static middleware handle serving index.html
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
-// Then static middleware
-app.use(express.static('public'));
+// Static middleware
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Test endpoint
 app.get('/test', (req, res) => {
-  console.log('Test endpoint hit');
   res.json({ message: 'Server is working!' });
 });
 
 // Load the scraped SIP data
-let sipDataPath = path.join(__dirname, 'output', 'forum-data-2025-02-13-113208-compressed.json');
-const compressedContextPath = path.join(__dirname, 'output', 'compressed-context.md');
+const compressedContextPath = path.join(__dirname, '..', 'output', 'compressed-context.md');
 let sipData = [];
 let compressedContext = null;
 
@@ -58,49 +54,15 @@ const rl = readline.createInterface({
 // Promisify readline question
 const question = (query) => new Promise((resolve) => rl.question(query, resolve));
 
-// Add function to run forum scraper
-async function runForumScraper() {
-  const spinner = new Spinner('Scraping forum for new SIPs...');
-  
-  try {
-    spinner.start();
-    
-    // Create scraper instance
-    const scraper = new DiscourseScraper('https://forum.rare.xyz', { debug: true });
-    
-    // Test connection first
-    const testResult = await scraper.test();
-    if (!testResult.success) {
-      throw new Error(`Forum connection test failed: ${testResult.message}`);
-    }
-    
-    // Run the scraper
-    const scrapedData = await scraper.scrapeAll();
-    
-    // Generate filename with timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-    const outputPath = path.join(__dirname, 'output', `forum-data-${timestamp}-compressed.json`);
-    
-    // Save the scraped data
-    await fs.promises.writeFile(
-      outputPath,
-      JSON.stringify(scrapedData, null, 2)
-    );
-    
-    spinner.stop();
-    console.log(`\nScraping completed. Found ${scrapedData.posts.length} SIP posts`);
-    console.log(`Data saved to ${outputPath}`);
-    
-    // Update the sipDataPath to use the newly created file
-    sipDataPath = outputPath;
-    return true;
-    
-  } catch (error) {
-    spinner.stop();
-    console.error('Error running forum scraper:', error);
-    return false;
-  }
-}
+// Ensure readline is closed on process exit
+process.on('exit', () => {
+  if (rl) rl.close();
+});
+
+process.on('SIGINT', () => {
+  if (rl) rl.close();
+  process.exit();
+});
 
 // Modify initialization function
 async function initializeData() {
@@ -121,18 +83,33 @@ async function initializeData() {
         rateLimit: 2000 
       });
       
-      // Test connection first
-      console.log('Testing forum connection...');
-      const testResult = await scraper.test();
-      if (!testResult.success) {
-        console.error('Forum connection test failed:', testResult.message);
+      const spinner = new Spinner('Testing forum connection...');
+      spinner.start();
+      
+      try {
+        // Test connection first
+        const testResult = await scraper.test();
+        if (!testResult.success) {
+          spinner.stop();
+          console.error('Forum connection test failed:', testResult.message);
+          console.log('Falling back to existing data...');
+        } else {
+          spinner.stop();
+          console.log('Forum connection successful. Starting scrape...');
+          spinner.text = 'Scraping forum...';
+          spinner.start();
+          
+          const scrapedData = await scraper.scrapeAll();
+          await storage.saveScrapeResult(scrapedData);
+          sipData = scrapedData.posts;
+          
+          spinner.stop();
+          console.log(`Scraping completed. Found ${sipData.length} SIP posts`);
+        }
+      } catch (error) {
+        spinner.stop();
+        console.error('Error during forum scraping:', error);
         console.log('Falling back to existing data...');
-      } else {
-        console.log('Forum connection successful. Starting scrape...');
-        const scrapedData = await scraper.scrapeAll();
-        await storage.saveScrapeResult(scrapedData);
-        sipData = scrapedData.posts;
-        console.log(`Scraping completed. Found ${sipData.length} SIP posts`);
       }
     }
 
@@ -148,17 +125,12 @@ async function initializeData() {
 
     console.log('Number of SIPs loaded:', sipData.length);
 
-    // Ask about LLM provider FIRST
-    const defaultProvider = process.env.LLM_PROVIDER || 'local';
-    console.log(`Default provider from environment: ${defaultProvider}`);
-
-    // Define provider config BEFORE using it
+    // Define provider config
     const providerConfig = {
       local: {
         provider: 'local',
         config: {
-          baseUrl: 'http://100.85.125.254:1234/v1',
-          model: 'phi-4',
+          model: process.env.LLM_MODEL || 'phi-4',
           temperature: 0.7,
           maxTokens: 15000
         }
@@ -167,32 +139,29 @@ async function initializeData() {
         provider: 'openai',
         config: {
           apiKey: process.env.OPENAI_API_KEY,
-          model: 'o1-mini-2024-09-12'
+          model: process.env.OPENAI_MODEL
         }
       },
       anthropic: {
         provider: 'anthropic',
         config: {
           apiKey: process.env.ANTHROPIC_API_KEY,
-          model: 'claude-3-5-sonnet-20241022'
+          model: process.env.ANTHROPIC_MODEL
         }
       }
     };
 
     const providerAnswer = await question(
       '\nWhich LLM provider would you like to use?\n' +
-      `1. Local (LMStudio - ${providerConfig.local.config.model}) ${defaultProvider === 'local' ? '[default]' : ''}\n` +
-      `2. OpenAI (${providerConfig.openai.config.model}) ${defaultProvider === 'openai' ? '[default]' : ''}\n` +
-      `3. Anthropic (${providerConfig.anthropic.config.model}) ${defaultProvider === 'anthropic' ? '[default]' : ''}\n` +
-      'Enter 1, 2, or 3 (or press Enter for default): '
+      `1. Local (LMStudio - ${providerConfig.local.config.model})\n` +
+      `2. OpenAI (${process.env.OPENAI_MODEL})\n` +
+      `3. Anthropic (${process.env.ANTHROPIC_MODEL})\n` +
+      'Enter 1, 2, or 3: '
     );
-
-    // Use default if no input
-    const choice = providerAnswer.trim() || defaultProvider;
 
     // Update provider selection
     let chosenConfig;
-    switch(choice) {
+    switch(providerAnswer.trim()) {
       case '1':
         chosenConfig = providerConfig.local;
         break;
@@ -203,15 +172,13 @@ async function initializeData() {
         chosenConfig = providerConfig.anthropic;
         break;
       default:
-        throw new Error('Invalid provider selection');
+        throw new Error('Invalid provider selection. Please enter 1, 2, or 3.');
     }
 
     global.llmProvider = LLMProviderFactory.createProvider(
       chosenConfig.provider, 
       chosenConfig.config
     );
-
-    console.log(`Using ${chosenConfig.provider.toUpperCase()} provider`);
 
     // THEN check for existing compressed context
     let existingContextExists = false;
@@ -467,7 +434,6 @@ const chatHistories = new Map();
 // Update the chat endpoint
 app.post('/chat', async (req, res) => {
   try {
-    logger.log('Received chat request', { message: req.body.message });
     debug('LLM Provider details:', {
       type: global.llmProvider?.constructor.name,
       config: global.llmProvider?.config,
@@ -482,7 +448,7 @@ app.post('/chat', async (req, res) => {
     const history = chatHistories.get(sessionId);
 
     if (!req.body || !req.body.message) {
-      logger.logError('Missing message in request');
+      debug('Missing message in request');
       return res.status(400).json({ 
         error: 'Missing message in request body',
         userMessage: 'Please provide a message to chat about.'
@@ -490,7 +456,6 @@ app.post('/chat', async (req, res) => {
     }
 
     if (!global.llmProvider) {
-      logger.logError('LLM provider not initialized');
       debug('Provider initialization failed. Current state:', {
         provider: global.llmProvider,
         env: {
@@ -506,7 +471,7 @@ app.post('/chat', async (req, res) => {
     }
 
     if (!compressedContext) {
-      logger.logError('Context not initialized');
+      debug('Context not initialized');
       return res.status(500).json({ 
         error: 'Context not initialized',
         userMessage: 'The chat service is still loading. Please try again in a moment.'
@@ -521,7 +486,7 @@ app.post('/chat', async (req, res) => {
     ];
 
     // Add logging for LLM provider type
-    logger.log('Using LLM provider:', global.llmProvider.constructor.name);
+    debug('Using LLM provider:', global.llmProvider.constructor.name);
     debug('Provider configuration:', {
       type: global.llmProvider.constructor.name,
       baseUrl: global.llmProvider.config?.baseUrl,
@@ -541,14 +506,14 @@ app.post('/chat', async (req, res) => {
         // Test connection to LMStudio
         const testResponse = await axios.get('http://localhost:1234/v1/models');
         debug('LMStudio connection test response:', testResponse.data);
-        logger.log('Successfully connected to LMStudio');
+        debug('Successfully connected to LMStudio');
       } catch (error) {
         debug('LMStudio connection test failed:', {
           error: error.message,
           code: error.code,
           response: error.response?.data
         });
-        logger.logError('Failed to connect to LMStudio:', error);
+        debug('Failed to connect to LMStudio:', error);
         return res.status(503).json({
           error: 'LMStudio Connection Error',
           userMessage: 'Could not connect to LMStudio. Please ensure LMStudio is running on port 1234 and try again.',
@@ -557,7 +522,7 @@ app.post('/chat', async (req, res) => {
       }
     }
 
-    logger.log('Sending request to LLM provider');
+    debug('Sending request to LLM provider');
     
     try {
       debug('Calling provider.chat() with messages');
@@ -570,7 +535,7 @@ app.post('/chat', async (req, res) => {
         { role: 'assistant', content: response }
       );
 
-      logger.log('Received response from LLM');
+      debug('Received response from LLM');
       res.json({ response });
     } catch (error) {
       debug('LLM request failed:', {
@@ -590,7 +555,6 @@ app.post('/chat', async (req, res) => {
       provider: global.llmProvider?.constructor.name,
       stack: error.stack
     });
-    logger.logError('Chat processing error:', error);
     
     // Enhanced error handling with more specific messages
     let userMessage = 'An unexpected error occurred. Please try again later.';

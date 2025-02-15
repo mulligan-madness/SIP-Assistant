@@ -1,12 +1,15 @@
 const { BaseLLMProvider } = require('./base');
 const { OpenAI } = require('openai');
+const debug = require('debug')('chatbot:openai');
 
 class OpenAIProvider extends BaseLLMProvider {
   constructor(config = {}) {
     super();
-    this.client = new OpenAI(config.apiKey);
-    this.model = config.model || 'o1-mini-2024-09-12';
+    debug('Initializing OpenAI provider with config:', { ...config, apiKey: config.apiKey ? 'Set' : 'Not set' });
+    this.client = new OpenAI({ apiKey: config.apiKey });
+    this.model = config.model || 'o3-mini-2025-01-31';
     this.config = config;
+    debug('Using model:', this.model);
   }
 
   async complete(prompt) {

@@ -64,8 +64,8 @@ describe('Forum API Integration', function() {
         .reply(200, mockTopic);
 
       const result = await scraper.scrapeAll();
-      assert(result.posts[0].c, 'Should have content');
-      assert(result.posts[0].t, 'Should have title');
+      assert(result.posts[0].c === '<p>Test content with <strong>HTML</strong></p>', 'Should have correct content');
+      assert(result.posts[0].t === '[SIP-001] Test', 'Should have correct title');
     });
   });
 
@@ -74,12 +74,18 @@ describe('Forum API Integration', function() {
       const mockTopics = {
         topic_list: {
           topics: [
-            { id: 1, title: '[SIP-001] Format One', slug: 'one' },
-            { id: 2, title: 'SIP 002: Format Two', slug: 'two' },
-            { id: 3, title: 'SIP|003 Format Three', slug: 'three' },
-            { id: 4, title: 'Not a SIP Post', slug: 'not-sip' }
+            { id: 1, title: '[SIP-001] Format One', slug: 'one', created_at: '2024-02-20T10:00:00Z' },
+            { id: 2, title: 'SIP 002: Format Two', slug: 'two', created_at: '2024-02-20T10:00:00Z' },
+            { id: 3, title: 'SIP|003 Format Three', slug: 'three', created_at: '2024-02-20T10:00:00Z' },
+            { id: 4, title: 'Not a SIP Post', slug: 'not-sip', created_at: '2024-02-20T10:00:00Z' }
           ],
           more_topics_url: null
+        }
+      };
+
+      const mockContent = {
+        post_stream: {
+          posts: [{ cooked: '<p>Content</p>' }]
         }
       };
 
@@ -88,34 +94,26 @@ describe('Forum API Integration', function() {
         .query(true)
         .reply(200, mockTopics)
         .get('/t/1.json')
-        .reply(200, {
-          post_stream: { posts: [{ cooked: '<p>Content</p>' }] }
-        })
+        .reply(200, mockContent)
         .get('/t/2.json')
-        .reply(200, {
-          post_stream: { posts: [{ cooked: '<p>Content</p>' }] }
-        })
+        .reply(200, mockContent)
         .get('/t/3.json')
-        .reply(200, {
-          post_stream: { posts: [{ cooked: '<p>Content</p>' }] }
-        });
+        .reply(200, mockContent);
 
       const result = await scraper.scrapeAll();
       const titles = result.posts.map(p => p.t);
       
-      // Check that we detect each valid SIP format
       assert(titles.includes('[SIP-001] Format One'), 'Should detect [SIP-XXX] format');
       assert(titles.includes('SIP 002: Format Two'), 'Should detect SIP XXX: format');
       assert(titles.includes('SIP|003 Format Three'), 'Should detect SIP|XXX format');
-      
-      // Verify we don't pick up non-SIP posts
       assert(!titles.includes('Not a SIP Post'), 'Should not include non-SIP posts');
+      assert.strictEqual(result.posts.length, 3, 'Should find exactly 3 SIP posts');
     });
   });
 
   describe('Error Handling', () => {
     it('should handle API errors gracefully', async () => {
-      const scope = nock('https://forum.rare.xyz')
+      nock('https://forum.rare.xyz')
         .get('/c/proposals/18.json')
         .query(true)
         .reply(200, {
@@ -123,7 +121,8 @@ describe('Forum API Integration', function() {
             topics: [{
               id: 1,
               title: '[SIP-001] Test',
-              slug: 'test'
+              slug: 'test',
+              created_at: '2024-02-20T10:00:00Z'
             }],
             more_topics_url: null
           }
@@ -132,8 +131,8 @@ describe('Forum API Integration', function() {
         .reply(500);
 
       const result = await scraper.scrapeAll();
-      assert(result.posts[0].c === '[Content fetch failed]', 'Should handle failed content fetch');
-      assert(result.posts[0].t, 'Should still have basic post data');
+      assert.strictEqual(result.posts[0].c, '[Content fetch failed]', 'Should handle failed content fetch');
+      assert.strictEqual(result.posts[0].t, '[SIP-001] Test', 'Should still have basic post data');
     });
   });
 

@@ -22,11 +22,12 @@ out/
 .vscode/
 *.swp
 *.swo
+*.code-workspace
+*.local.*
+
+# System Files
 .DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+Thumbs.db
 
 # Logs
 logs
@@ -59,6 +60,10 @@ coverage/
 # Nuxt.js build output
 .nuxt
 
-# System Files
-.DS_Store
-Thumbs.db 
+# Application specific
+output/*.json
+output/*.md
+output/compressed-context*
+output/forum-data-*
+output/sip-data-*
+output/chat-history-* 

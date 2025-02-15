@@ -1,51 +1,52 @@
-const fs = require('fs').promises;
+const fs = require('fs');
 const path = require('path');
-const debug = require('debug')('forum-scraper:storage');
+const debug = require('debug')('chatbot:storage');
 
 class Storage {
-  constructor(outputDir = 'output') {
-    this.outputDir = outputDir;
+  constructor() {
+    this.outputDir = path.join(__dirname, '..', 'output');
+    if (!fs.existsSync(this.outputDir)) {
+      fs.mkdirSync(this.outputDir, { recursive: true });
+    }
   }
 
   async saveScrapeResult(data) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-    const filename = `sip-data-${timestamp}.json`;
+    const filename = `forum-data-${timestamp}.json`;
     const filepath = path.join(this.outputDir, filename);
-    
-    await fs.mkdir(this.outputDir, { recursive: true });
-    await fs.writeFile(filepath, JSON.stringify(data, null, 2));
-    
-    return filepath;
+
+    try {
+      await fs.promises.writeFile(filepath, JSON.stringify(data, null, 2));
+      debug(`Saved scrape result to ${filepath}`);
+      return filepath;
+    } catch (error) {
+      debug('Error saving scrape result:', error);
+      throw error;
+    }
   }
 
   async getLatestScrape() {
     try {
-      const files = await fs.readdir(this.outputDir);
-      const sipFiles = files
-        .filter(f => f.startsWith('sip-data-'))
-        .sort();
-        
-      if (sipFiles.length === 0) return null;
-      
-      // Try files from newest to oldest until we find a valid one
-      for (const file of sipFiles.reverse()) {
-        try {
-          const content = await fs.readFile(
-            path.join(this.outputDir, file), 
-            'utf8'
-          );
-          return JSON.parse(content);
-        } catch (error) {
-          debug(`Error reading ${file}, trying next file`);
-        }
+      const files = await fs.promises.readdir(this.outputDir);
+      const dataFiles = files
+        .filter(f => f.startsWith('forum-data-') && f.endsWith('.json'))
+        .sort()
+        .reverse();
+
+      if (dataFiles.length === 0) {
+        debug('No existing scrape data found');
+        return null;
       }
-      return null;
+
+      const latestFile = path.join(this.outputDir, dataFiles[0]);
+      const data = JSON.parse(await fs.promises.readFile(latestFile, 'utf8'));
+      debug(`Loaded latest scrape from ${latestFile}`);
+      return data;
     } catch (error) {
-      debug('Error accessing storage:', error);
-      return null;
+      debug('Error getting latest scrape:', error);
+      throw error;
     }
   }
 }
 
-// Export the Storage class
 module.exports = { Storage }; 

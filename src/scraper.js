@@ -1,5 +1,5 @@
 const axios = require('axios');
-const debug = require('debug')('forum-scraper:scraper');
+const debug = require('debug')('chatbot:scraper');
 
 class DiscourseScraper {
   constructor(baseUrl, options = {}) {
@@ -57,12 +57,10 @@ class DiscourseScraper {
     while (hasMore) {
       debug(`Fetching page ${page}`);
       try {
-        // Use the category-specific URL
         const url = `${this.baseUrl}/c/proposals/18.json?page=${page}`;
         const data = await this.fetchWithRetry(url);
         
-        // Check if we have any topics at all
-        if (!data.topic_list.topics || data.topic_list.topics.length === 0) {
+        if (!data.topic_list?.topics || data.topic_list.topics.length === 0) {
           debug('No more topics found');
           hasMore = false;
           break;
@@ -71,13 +69,20 @@ class DiscourseScraper {
         const sipPosts = data.topic_list.topics
           .filter(topic => {
             const title = topic.title.toUpperCase();
-            return title.includes('[SIP') || title.includes('SIP ') || title.includes('SIP|');
+            return (
+              title.includes('SIP') || // Any title containing SIP
+              title.match(/\[SIP[-\s]*\d*\]/) || // [SIP-XXX] format, optional number
+              title.match(/SIP[-\s]*\d*:/) ||   // SIP XXX: format, optional number
+              title.match(/SIP\|/) ||           // SIP| format
+              title.startsWith('SIP') ||        // Starts with SIP
+              title.includes('IMPROVEMENT PROPOSAL') // Contains "Improvement Proposal"
+            );
           })
           .map(topic => ({
             id: topic.id,
             t: topic.title,
             d: topic.created_at,
-            c: '',
+            c: null,
             url: `${this.baseUrl}/t/${topic.slug}/${topic.id}`,
             status: topic.tags ? topic.tags.join(', ') : ''
           }));
@@ -88,24 +93,22 @@ class DiscourseScraper {
             try {
               const topicUrl = `${this.baseUrl}/t/${post.id}.json`;
               const topicData = await this.fetchWithRetry(topicUrl);
-              post.c = topicData.post_stream.posts[0].cooked;
-              debug(`Fetched content for SIP: ${post.t}`);
               
-              // Add validation
-              if (!validateSipPost(post)) {
-                debug(`Skipping invalid post: ${post.t}`);
-                continue;
+              if (topicData?.post_stream?.posts?.[0]?.cooked) {
+                post.c = topicData.post_stream.posts[0].cooked;
+                debug(`Fetched content for SIP: ${post.t}`);
+              } else {
+                debug(`Invalid content structure for post ${post.id}`);
+                post.c = '[Invalid content structure]';
               }
             } catch (error) {
               debug(`Error fetching content for post ${post.id}: ${error.message}`);
               post.c = '[Content fetch failed]';
             }
           }
-          // Only add valid posts
-          posts.push(...sipPosts.filter(validateSipPost));
+          posts.push(...sipPosts);
         }
 
-        // Check if there are more pages
         hasMore = Boolean(data.topic_list.more_topics_url);
         if (!hasMore) {
           debug('No more pages to fetch');
@@ -130,7 +133,6 @@ class DiscourseScraper {
     };
   }
 
-  // Test method to verify scraper configuration
   async test() {
     try {
       debug('Running scraper test');

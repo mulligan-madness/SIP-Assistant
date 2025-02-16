@@ -108,11 +108,66 @@ app.use('/api', (req, res, next) => {
   if (!llmInitialized && req.path !== '/init-llm' && req.path !== '/status') {
     return res.status(503).json({
       error: 'LLM not initialized',
-      userMessage: 'Please initialize the LLM provider first.'
+      userMessage: 'Please wait while the system initializes.'
     });
   }
   next();
 });
+
+// Automatic initialization function
+async function autoInitialize() {
+  try {
+    // Initialize OpenAI provider by default
+    const openaiConfig = {
+      provider: 'openai',
+      config: {
+        apiKey: process.env.OPENAI_API_KEY,
+        model: process.env.OPENAI_MODEL
+      }
+    };
+
+    global.llmProvider = LLMProviderFactory.createProvider(
+      openaiConfig.provider,
+      openaiConfig.config
+    );
+    llmInitialized = true;
+
+    // Initialize storage and data
+    const storage = new Storage();
+    const latestData = await storage.getLatestScrape();
+
+    if (latestData) {
+      sipData = latestData.posts;
+    } else {
+      const scraper = new DiscourseScraper(process.env.FORUM_BASE_URL, { debug: true });
+      const scrapedData = await scraper.scrapeAll();
+      await storage.saveScrapeResult(scrapedData);
+      sipData = scrapedData.posts;
+    }
+
+    // Load or generate compressed context
+    let existingContextExists = false;
+    try {
+      fs.accessSync(compressedContextPath);
+      existingContextExists = true;
+    } catch (err) {
+      // File doesn't exist
+    }
+
+    if (existingContextExists) {
+      compressedContext = fs.readFileSync(compressedContextPath, 'utf8').split('---')[2].trim();
+    } else {
+      compressedContext = await compressSIPDataWithLLM(sipData);
+      saveCompressedContext();
+    }
+
+    isInitialized = true;
+    console.log('Server auto-initialization complete!');
+  } catch (err) {
+    console.error('Error during auto-initialization:', err);
+    throw err;
+  }
+}
 
 // New endpoint to initialize LLM
 app.post('/api/init-llm', validateProviderInput, async (req, res, next) => {
@@ -294,8 +349,12 @@ app.post('/api/restart', async (req, res) => {
     
     // Wait a moment to ensure response is sent
     setTimeout(() => {
-      console.log('Restarting server...');
-      process.exit(0); // PM2 or similar process manager will restart the server
+      if (process.env.NODE_ENV === 'production') {
+        console.log('Restarting server in production mode...');
+        process.exit(0); // PM2 or similar process manager will restart the server
+      } else {
+        console.log('Development mode: Server restart simulated, not exiting process.');
+      }
     }, 1000);
   } catch (error) {
     res.status(500).json({
@@ -393,7 +452,10 @@ app.get('*', (req, res) => {
 if (require.main === module) {
   app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
-    console.log('Server is ready to initialize components...');
+    autoInitialize().catch(err => {
+      console.error('Failed to auto-initialize:', err);
+      process.exit(1);
+    });
   });
 }
 
@@ -418,151 +480,6 @@ process.on('SIGINT', () => {
   if (rl) rl.close();
   process.exit();
 });
-
-// Modify initialization function
-async function initializeData() {
-  try {
-    const storage = new Storage();
-    const isDev = process.env.NODE_ENV === 'development';
-    const scraper = new DiscourseScraper(process.env.FORUM_BASE_URL, { debug: true });
-    
-    // Check for existing data
-    const latestData = await storage.getLatestScrape();
-    let sipData;
-    
-    if (latestData) {
-      const rescrapeAnswer = await question(
-        '\nExisting SIP data found. Would you like to:\n' +
-        '1. Use existing data\n' +
-        '2. Rescrape forum for fresh data\n' +
-        'Enter 1 or 2: '
-      );
-
-      if (rescrapeAnswer.trim() === '2') {
-        console.log('\nStarting forum scrape...');
-        const scrapedData = await scraper.scrapeAll();
-        await storage.saveScrapeResult(scrapedData);
-        sipData = scrapedData.posts;
-        console.log('Forum scrape completed successfully');
-      } else if (rescrapeAnswer.trim() === '1') {
-        sipData = latestData.posts;
-        console.log('Using existing SIP data');
-      } else {
-        throw new Error('Invalid selection. Please enter 1 or 2.');
-      }
-    } else {
-      console.log('No existing SIP data found. Starting fresh forum scrape...');
-      const scrapedData = await scraper.scrapeAll();
-      await storage.saveScrapeResult(scrapedData);
-      sipData = scrapedData.posts;
-      console.log('Forum scrape completed successfully');
-    }
-    
-    console.log('Number of SIPs loaded:', sipData.length);
-
-    // Configure LLM provider
-    let chosenConfig;
-    if (isDev) {
-      // In development, use local provider by default
-      chosenConfig = {
-        provider: 'local',
-        config: {
-          model: process.env.LOCAL_LLM_MODEL || 'phi-4',
-          temperature: 0.7,
-          maxTokens: 15000,
-          baseUrl: process.env.LOCAL_LLM_BASE_URL || 'http://localhost:1234/v1',
-          execPath: process.env.LOCAL_LLM_EXEC_PATH
-        }
-      };
-    } else {
-      // In production, use the configured provider or ask for selection
-      const providerConfig = {
-        local: {
-          provider: 'local',
-          config: {
-            model: process.env.LOCAL_LLM_MODEL || 'phi-4',
-            temperature: 0.7,
-            maxTokens: 15000,
-            baseUrl: process.env.LOCAL_LLM_BASE_URL,
-            execPath: process.env.LOCAL_LLM_EXEC_PATH
-          }
-        },
-        openai: {
-          provider: 'openai',
-          config: {
-            apiKey: process.env.OPENAI_API_KEY,
-            model: process.env.OPENAI_MODEL
-          }
-        },
-        anthropic: {
-          provider: 'anthropic',
-          config: {
-            apiKey: process.env.ANTHROPIC_API_KEY,
-            model: process.env.ANTHROPIC_MODEL
-          }
-        }
-      };
-
-      const providerAnswer = await question(
-        '\nWhich LLM provider would you like to use?\n' +
-        `1. Local (LMStudio - ${providerConfig.local.config.model})\n` +
-        `2. OpenAI (${process.env.OPENAI_MODEL})\n` +
-        `3. Anthropic (${process.env.ANTHROPIC_MODEL})\n` +
-        'Enter 1, 2, or 3: '
-      );
-
-      switch(providerAnswer.trim()) {
-        case '1':
-          chosenConfig = providerConfig.local;
-          break;
-        case '2':
-          chosenConfig = providerConfig.openai;
-          break;
-        case '3':
-          chosenConfig = providerConfig.anthropic;
-          break;
-        default:
-          throw new Error('Invalid provider selection. Please enter 1, 2, or 3.');
-      }
-    }
-
-    global.llmProvider = LLMProviderFactory.createProvider(
-      chosenConfig.provider, 
-      chosenConfig.config
-    );
-
-    // Load or generate compressed context
-    let existingContextExists = false;
-    try {
-      fs.accessSync(compressedContextPath);
-      existingContextExists = true;
-    } catch (err) {
-      // File doesn't exist
-    }
-
-    if (existingContextExists) {
-      const existingContext = fs.readFileSync(compressedContextPath, 'utf8');
-      compressedContext = existingContext.split('---')[2].trim();
-      console.log('Loaded existing compressed context');
-    } else {
-      console.log('No existing compressed context found, generating new one...');
-      compressedContext = await compressSIPDataWithLLM(sipData);
-      saveCompressedContext();
-    }
-
-    console.log('Compressed context preview:', 
-      compressedContext.substring(0, 500) + '...');
-
-    if (!isDev && rl) {
-      rl.close();
-    }
-
-    console.log('Server initialization complete!');
-  } catch (err) {
-    console.error('Error initializing data:', err);
-    throw err;
-  }
-}
 
 // Helper function to save compressed context
 function saveCompressedContext() {

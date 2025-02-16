@@ -1,106 +1,86 @@
 <template>
-  <div v-if="show" class="settings-modal" @click="closeModal">
-    <div class="settings-modal__content" @click.stop>
-      <div class="settings-modal__header">
-        <h2 class="settings-modal__title">Settings</h2>
-        <button 
-          class="settings-modal__close-button" 
-          @click="closeModal"
-          aria-label="Close settings"
-        >
-          &times;
-        </button>
-      </div>
+  <div v-if="show" class="settings-modal" @click.self="closeModal">
+    <div class="settings-modal__content">
+      <h2 class="settings-modal__title">Settings</h2>
       
-      <div class="settings-modal__body">
-        <section class="settings-modal__section">
-          <h3 class="settings-modal__section-title">LLM Provider</h3>
-          <div class="settings-modal__button-group">
-            <button 
-              class="settings-modal__button"
-              :class="{ 'settings-modal__button--active': currentProvider === '1' }"
-              @click="changeLLM('1')" 
-              :disabled="changingProvider"
-            >
-              Local (LMStudio)
-            </button>
-            <button 
-              class="settings-modal__button"
-              :class="{ 'settings-modal__button--active': currentProvider === '2' }"
-              @click="changeLLM('2')" 
-              :disabled="changingProvider"
-            >
-              OpenAI
-            </button>
-            <button 
-              class="settings-modal__button"
-              :class="{ 'settings-modal__button--active': currentProvider === '3' }"
-              @click="changeLLM('3')" 
-              :disabled="changingProvider"
-            >
-              Anthropic
-            </button>
-          </div>
-        </section>
+      <div class="settings-section">
+        <h3>LLM Provider</h3>
+        <div class="button-group">
+          <button 
+            class="action-button"
+            @click="changeLLM('1')" 
+            :disabled="changingProvider"
+          >
+            Local (LMStudio - phi-4)
+          </button>
+          <button 
+            class="action-button"
+            @click="changeLLM('2')" 
+            :disabled="changingProvider"
+          >
+            OpenAI (o1-mini)
+          </button>
+          <button 
+            class="action-button"
+            @click="changeLLM('3')" 
+            :disabled="changingProvider"
+          >
+            Anthropic (claude-3-opus-latest)
+          </button>
+        </div>
+      </div>
 
-        <section class="settings-modal__section">
-          <h3 class="settings-modal__section-title">Data Management</h3>
-          <div class="settings-modal__button-group">
-            <button 
-              class="settings-modal__button"
-              @click="loadData(false)" 
-              :disabled="dataLoading"
-            >
-              Use Existing Data
-            </button>
-            <button 
-              class="settings-modal__button"
-              @click="loadData(true)" 
-              :disabled="dataLoading"
-            >
-              Scrape Fresh Data
-            </button>
+      <div class="settings-section">
+        <h3>Data Management</h3>
+        <div class="button-group">
+          <button 
+            class="action-button"
+            @click="scrapeForum" 
+            :disabled="scraping || generatingContext"
+          >
+            Scrape Fresh Forum Data
+          </button>
+          <button 
+            class="action-button"
+            @click="regenerateContext" 
+            :disabled="generatingContext || scraping"
+          >
+            Regenerate Context
+          </button>
+        </div>
+        <div v-if="scraping" class="scraping-status">
+          <div class="loading-spinner"></div>
+          <div class="scraping-info">
+            <div class="scraping-message">{{ scrapingMessage }}</div>
+            <div class="scraping-timer">{{ formatTime(elapsedTime) }}</div>
           </div>
-        </section>
+        </div>
+        <div v-if="generatingContext" class="scraping-status">
+          <div class="loading-spinner"></div>
+          <div class="scraping-info">
+            <div class="scraping-message">{{ contextPun }}</div>
+            <div class="scraping-timer">{{ formatTime(contextTime) }}</div>
+          </div>
+        </div>
+      </div>
 
-        <section class="settings-modal__section">
-          <h3 class="settings-modal__section-title">Context Management</h3>
-          <div class="settings-modal__button-group">
-            <button 
-              class="settings-modal__button"
-              @click="loadExistingContext()" 
-              :disabled="contextLoading"
-            >
-              Use Existing Context
-            </button>
-            <button 
-              class="settings-modal__button"
-              @click="generateNewContext()" 
-              :disabled="contextLoading"
-            >
-              Generate New Context
-            </button>
-          </div>
-        </section>
-
-        <section class="settings-modal__section">
-          <h3 class="settings-modal__section-title">Server Control</h3>
-          <div class="settings-modal__button-group">
-            <button 
-              class="settings-modal__button settings-modal__button--warning"
-              @click="restartServer()" 
-              :disabled="serverRestarting"
-            >
-              Restart Server
-            </button>
-            <button 
-              class="settings-modal__button"
-              @click="reloadPage()"
-            >
-              Reload Page
-            </button>
-          </div>
-        </section>
+      <div class="settings-section">
+        <h3>System</h3>
+        <div class="button-group">
+          <button 
+            class="action-button"
+            @click="restartServer" 
+            :disabled="serverRestarting"
+          >
+            Restart Server
+          </button>
+          <button 
+            class="action-button"
+            @click="reloadPage"
+          >
+            Reload Page
+          </button>
+        </div>
       </div>
 
       <Transition name="fade">
@@ -133,24 +113,65 @@ export default {
   setup(props, { emit }) {
     const isDevelopment = computed(() => process.env.NODE_ENV === 'development')
 
-    if (isDevelopment.value) {
-      console.log('SettingsModal setup starting')
-    }
-
     // State
     const status = ref(null)
     const currentProvider = ref(null)
     const changingProvider = ref(false)
-    const dataLoading = ref(false)
-    const contextLoading = ref(false)
     const serverRestarting = ref(false)
+    const scraping = ref(false)
+    const generatingContext = ref(false)
+    const elapsedTime = ref(0)
+    const contextTime = ref(0)
+    const scrapingMessage = ref('')
+    const contextPun = ref('')
+    let timerInterval = null
+    let contextInterval = null
+    let punInterval = null
+
+    const contextPuns = [
+      "I'm not just context switching, I'm context flipping!",
+      "This context is taking so long, it must be text-ercising",
+      "Getting in shape with some context-ual fitness",
+      "Don't worry, I'm just having a context identity crisis",
+      "This is quite the context-ual situation we're in",
+      "I'm not stalling, I'm building context-ual suspense",
+      "This is a pretty deep context we're getting into",
+      "Making context great again, one token at a time",
+      "Hold tight, we're in a context-sensitive area",
+      "This context is like a good book - full of plot twists",
+      "Context is loading... please enjoy these dad jokes",
+      "Warning: Context overload imminent!",
+      "Brewing up some fresh context for you",
+      "Context.exe has encountered a pun exception",
+      "Loading context... please don't feed the AI"
+    ]
 
     // Methods
     const closeModal = () => {
-      if (isDevelopment.value) {
-        console.log('SettingsModal closing')
-      }
+      if (timerInterval) clearInterval(timerInterval)
+      if (contextInterval) clearInterval(contextInterval)
+      if (punInterval) clearInterval(punInterval)
       emit('close')
+    }
+
+    const formatTime = (seconds) => {
+      const mins = Math.floor(seconds / 60)
+      const secs = seconds % 60
+      return `${mins}:${secs.toString().padStart(2, '0')}`
+    }
+
+    const updateScrapingMessage = (time) => {
+      if (time <= 2) {
+        scrapingMessage.value = 'Initializing scraper...'
+      } else if (time <= 5) {
+        scrapingMessage.value = 'Fetching SIP proposals...'
+      } else if (time <= 8) {
+        scrapingMessage.value = 'Processing forum content...'
+      } else if (time <= 12) {
+        scrapingMessage.value = 'Analyzing SIP data...'
+      } else {
+        scrapingMessage.value = 'Finalizing data collection...'
+      }
     }
 
     const setStatus = (message, type = 'info') => {
@@ -161,10 +182,6 @@ export default {
     }
 
     const changeLLM = async (provider) => {
-      if (isDevelopment.value) {
-        console.log('Changing LLM provider to:', provider)
-      }
-      
       changingProvider.value = true
       try {
         const response = await fetch('/api/init-llm', {
@@ -186,84 +203,41 @@ export default {
       }
     }
 
-    const loadData = async (rescrape) => {
-      if (isDevelopment.value) {
-        console.log('Loading data, rescrape:', rescrape)
-      }
+    const scrapeForum = async () => {
+      scraping.value = true
+      elapsedTime.value = 0
+      scrapingMessage.value = 'Initializing scraper...'
       
-      dataLoading.value = true
+      // Start timer
+      timerInterval = setInterval(() => {
+        elapsedTime.value++
+        updateScrapingMessage(elapsedTime.value)
+      }, 1000)
+
       try {
         const response = await fetch('/api/load-data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rescrape })
+          body: JSON.stringify({ rescrape: true })
         })
         
         if (!response.ok) {
-          throw new Error('Failed to load data')
+          throw new Error('Failed to scrape forum data')
         }
         
-        setStatus(rescrape ? 'Fresh data scraped successfully' : 'Existing data loaded successfully', 'success')
+        const data = await response.json()
+        setStatus(`Successfully scraped ${data.count} SIPs`, 'success')
       } catch (error) {
         setStatus(error.message, 'error')
       } finally {
-        dataLoading.value = false
-      }
-    }
-
-    const loadExistingContext = async () => {
-      if (isDevelopment.value) {
-        console.log('Loading existing context')
-      }
-      
-      contextLoading.value = true
-      try {
-        const response = await fetch('/api/load-context', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        })
-        
-        if (!response.ok) {
-          throw new Error('Failed to load existing context')
+        if (timerInterval) {
+          clearInterval(timerInterval)
         }
-        
-        setStatus('Existing context loaded successfully', 'success')
-      } catch (error) {
-        setStatus(error.message, 'error')
-      } finally {
-        contextLoading.value = false
-      }
-    }
-
-    const generateNewContext = async () => {
-      if (isDevelopment.value) {
-        console.log('Generating new context')
-      }
-      
-      contextLoading.value = true
-      try {
-        const response = await fetch('/api/generate-context', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        })
-        
-        if (!response.ok) {
-          throw new Error('Failed to generate new context')
-        }
-        
-        setStatus('New context generated successfully', 'success')
-      } catch (error) {
-        setStatus(error.message, 'error')
-      } finally {
-        contextLoading.value = false
+        scraping.value = false
       }
     }
 
     const restartServer = async () => {
-      if (isDevelopment.value) {
-        console.log('Restarting server')
-      }
-      
       serverRestarting.value = true
       try {
         await fetch('/api/restart', { method: 'POST' })
@@ -278,26 +252,64 @@ export default {
     }
 
     const reloadPage = () => {
-      if (isDevelopment.value) {
-        console.log('Reloading page')
-      }
       window.location.reload()
+    }
+
+    const regenerateContext = async () => {
+      generatingContext.value = true
+      contextTime.value = 0
+      contextPun.value = contextPuns[0]
+      let punIndex = 1
+
+      // Start timer
+      contextInterval = setInterval(() => {
+        contextTime.value++
+      }, 1000)
+
+      // Rotate puns every 5 seconds
+      punInterval = setInterval(() => {
+        contextPun.value = contextPuns[punIndex]
+        punIndex = (punIndex + 1) % contextPuns.length
+      }, 5000)
+
+      try {
+        const response = await fetch('/api/generate-context', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+        
+        if (!response.ok) {
+          throw new Error('Failed to regenerate context')
+        }
+        
+        setStatus('Context regenerated successfully', 'success')
+      } catch (error) {
+        setStatus(error.message, 'error')
+      } finally {
+        if (contextInterval) clearInterval(contextInterval)
+        if (punInterval) clearInterval(punInterval)
+        generatingContext.value = false
+      }
     }
 
     return {
       status,
       currentProvider,
       changingProvider,
-      dataLoading,
-      contextLoading,
       serverRestarting,
+      scraping,
+      generatingContext,
+      scrapingMessage,
+      contextPun,
+      elapsedTime,
+      contextTime,
       closeModal,
       changeLLM,
-      loadData,
-      loadExistingContext,
-      generateNewContext,
+      scrapeForum,
+      regenerateContext,
       restartServer,
-      reloadPage
+      reloadPage,
+      formatTime
     }
   }
 }
@@ -319,124 +331,66 @@ export default {
 
 .settings-modal__content {
   background: white;
-  border-radius: 8px;
+  border-radius: 12px;
+  padding: 30px;
   width: 90%;
   max-width: 600px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-.settings-modal__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  border-bottom: 1px solid var(--border-color);
 }
 
 .settings-modal__title {
-  margin: 0;
-  font-size: 1.5rem;
-  color: var(--text-color);
+  font-size: 1.8rem;
+  color: #333;
+  margin: 0 0 20px 0;
 }
 
-.settings-modal__close-button {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0.5rem;
-  color: #666;
-  transition: color 0.2s ease;
+.settings-section {
+  margin-bottom: 30px;
 }
 
-.settings-modal__close-button:hover {
-  color: var(--text-color);
+.settings-section h3 {
+  font-size: 1.2rem;
+  color: #333;
+  margin: 0 0 15px 0;
 }
 
-.settings-modal__body {
-  padding: 1rem;
-}
-
-.settings-modal__section {
-  margin-bottom: 1.5rem;
-}
-
-.settings-modal__section:last-child {
-  margin-bottom: 0;
-}
-
-.settings-modal__section-title {
-  margin: 0 0 1rem 0;
-  color: var(--text-color);
-  font-size: 1.1rem;
-}
-
-.settings-modal__button-group {
+.button-group {
   display: flex;
-  gap: 0.5rem;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
-.settings-modal__button {
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: #f8f9fa;
-  color: var(--text-color);
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s ease;
+.action-button {
   flex: 1;
-  min-width: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  min-width: 150px;
+  height: 44px;
+  background: #1976d2;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
 }
 
-.settings-modal__button:hover:not(:disabled) {
-  background: #f0f0f0;
-  border-color: var(--primary-color);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.action-button:hover:not(:disabled) {
+  background: #1565c0;
+  transform: none;
 }
 
-.settings-modal__button:disabled {
-  opacity: 0.6;
+.action-button:disabled {
+  background: #e0e0e0;
+  color: #9e9e9e;
   cursor: not-allowed;
 }
 
-.settings-modal__button--active {
-  background: var(--primary-color);
-  border-color: var(--primary-color);
-  color: white;
-  box-shadow: 0 2px 4px rgba(25, 118, 210, 0.2);
-}
-
-.settings-modal__button--active:hover:not(:disabled) {
-  background: var(--primary-dark);
-}
-
-.settings-modal__button--warning {
-  background: #fff5f5;
-  border-color: #f44336;
-  color: #f44336;
-}
-
-.settings-modal__button--warning:hover:not(:disabled) {
-  background: #f44336;
-  color: white;
-  border-color: #d32f2f;
-}
-
 .settings-modal__status {
-  padding: 1rem;
-  margin: 1rem;
-  border-radius: 4px;
+  margin-top: 20px;
+  padding: 10px;
+  border-radius: 6px;
   text-align: center;
-  transition: opacity 0.3s ease;
 }
 
 .settings-modal__status--success {
@@ -454,10 +408,9 @@ export default {
   color: #1565c0;
 }
 
-/* Animations */
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity 0.3s ease;
 }
 
 .fade-enter-from,
@@ -465,14 +418,69 @@ export default {
   opacity: 0;
 }
 
-/* Responsive design */
-@media (min-width: 768px) {
-  .settings-modal__button-group {
-    flex-wrap: nowrap;
+@media (max-width: 600px) {
+  .settings-modal__content {
+    padding: 20px;
   }
-  
-  .settings-modal__button {
-    min-width: unset;
+
+  .button-group {
+    flex-direction: column;
   }
+
+  .action-button {
+    width: 100%;
+  }
+}
+
+.scraping-status {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f5f5f5;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e0e0e0;
+  border-top: 3px solid #1976d2;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.scraping-info {
+  flex: 1;
+}
+
+.scraping-message {
+  color: #333;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+.scraping-timer {
+  color: #666;
+  font-size: 0.8rem;
+  font-family: monospace;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Add global override for chat settings button to remove rotation on hover */
+:deep(.chat__settings-button:hover),
+:deep(.chat__settings-icon:hover) {
+  transform: none !important;
 }
 </style> 

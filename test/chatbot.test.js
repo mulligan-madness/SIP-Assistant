@@ -12,15 +12,18 @@ describe('Chatbot Core Functionality', () => {
   beforeEach(() => {
     storage = new Storage();
     scraper = new DiscourseScraper('https://test.forum.com');
-    llmProvider = LLMProviderFactory.createProvider('local', {
+    llmProvider = LLMProviderFactory.createProvider('openai', {
       model: 'test-model',
-      baseUrl: 'http://localhost:1234'
+      apiKey: 'test-key'
     });
   });
 
   it('should initialize storage correctly', async () => {
     expect(storage).toBeDefined();
-  }, { timeout: 30000 });
+  });
 
-  // Add more tests as needed
+  it('should create LLM provider with correct configuration', () => {
+    expect(llmProvider).toBeDefined();
+    expect(llmProvider.config.model).toBe('test-model');
+  });
 }); 

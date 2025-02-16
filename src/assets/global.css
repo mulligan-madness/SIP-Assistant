@@ -1,0 +1,6 @@
+/* Global CSS overrides for chat settings button hover state */
+
+.chat__settings-button:hover,
+.chat__settings-icon:hover {
+  transform: none !important;
+} 

@@ -6,8 +6,8 @@ class LLMProviderFactory {
   static validateConfig(type, config) {
     switch (type.toLowerCase()) {
       case 'local':
-        if (!config.execPath && !process.env.LLM_EXEC_PATH) {
-          throw new Error('execPath is required for local provider (set in config or LLM_EXEC_PATH env var)');
+        if (!(config.baseUrl || config.execPath || process.env.LOCAL_LLM_BASE_URL || process.env.LOCAL_LLM_EXEC_PATH)) {
+          throw new Error('Either baseUrl or execPath is required for local provider');
         }
         break;
       case 'openai':
@@ -31,11 +31,11 @@ class LLMProviderFactory {
 
     switch (type.toLowerCase()) {
       case 'local':
-        finalConfig.execPath = config.execPath || process.env.LLM_EXEC_PATH;
-        finalConfig.host = config.host || process.env.LLM_HOST || 'localhost';
-        finalConfig.port = config.port || process.env.LLM_PORT || 1234;
-        finalConfig.model = config.model || process.env.LLM_MODEL || 'phi-4';
-        finalConfig.baseUrl = `http://${finalConfig.host}:${finalConfig.port}/v1`;
+        finalConfig.execPath = config.execPath || process.env.LOCAL_LLM_EXEC_PATH;
+        finalConfig.host = config.host || process.env.LOCAL_LLM_HOST || 'localhost';
+        finalConfig.port = config.port || process.env.LOCAL_LLM_PORT || 1234;
+        finalConfig.model = config.model || process.env.LOCAL_LLM_MODEL || 'phi-4';
+        finalConfig.baseUrl = config.baseUrl || process.env.LOCAL_LLM_BASE_URL || `http://${finalConfig.host}:${finalConfig.port}/v1`;
         return new LocalLLMProvider(finalConfig);
         
       case 'openai':

@@ -286,6 +286,25 @@ app.post('/api/load-context', async (req, res) => {
   }
 });
 
+// Server restart endpoint
+app.post('/api/restart', async (req, res) => {
+  try {
+    // Send response before restarting
+    res.json({ success: true, message: 'Server restarting...' });
+    
+    // Wait a moment to ensure response is sent
+    setTimeout(() => {
+      console.log('Restarting server...');
+      process.exit(0); // PM2 or similar process manager will restart the server
+    }, 1000);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to restart server',
+      userMessage: error.message
+    });
+  }
+});
+
 // Chat endpoint
 app.post('/chat', validateChatInput, async (req, res, next) => {
   const errors = validationResult(req);

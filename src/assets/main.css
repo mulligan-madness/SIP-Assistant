@@ -6,6 +6,19 @@
   --border-color: #ddd;
 }
 
+/* Debug styles - remove after testing */
+body::before {
+  content: 'CSS Loaded';
+  position: fixed;
+  top: 0;
+  left: 0;
+  background: red;
+  color: white;
+  padding: 4px 8px;
+  font-size: 12px;
+  z-index: 9999;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -18,6 +31,24 @@ body {
   -moz-osx-font-smoothing: grayscale;
   color: var(--text-color);
   background: var(--background-color);
+  line-height: 1.5;
+}
+
+button {
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  background: none;
+  padding: 0;
+}
+
+button:focus {
+  outline: none;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 /* Markdown styles */
@@ -28,10 +59,12 @@ body {
 .markdown-content h5,
 .markdown-content h6 {
   margin: 1.5em 0 0.5em;
+  color: var(--text-color);
 }
 
 .markdown-content p {
   margin: 0.5em 0;
+  line-height: 1.6;
 }
 
 .markdown-content ul,
@@ -65,4 +98,104 @@ body {
 .markdown-content img {
   max-width: 100%;
   height: auto;
+}
+
+/* Transitions */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* Utility classes */
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.gap-2 {
+  gap: 0.5rem;
+}
+
+.gap-4 {
+  gap: 1rem;
+}
+
+.p-4 {
+  padding: 1rem;
+}
+
+.m-4 {
+  margin: 1rem;
+}
+
+.rounded {
+  border-radius: 0.25rem;
+}
+
+.shadow {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.text-sm {
+  font-size: 0.875rem;
+}
+
+.text-base {
+  font-size: 1rem;
+}
+
+.text-lg {
+  font-size: 1.125rem;
+}
+
+.font-medium {
+  font-weight: 500;
+}
+
+.font-bold {
+  font-weight: 700;
+}
+
+.text-gray-600 {
+  color: #666;
+}
+
+.text-gray-800 {
+  color: #333;
+}
+
+.bg-white {
+  background-color: white;
+}
+
+.bg-gray-50 {
+  background-color: #f9fafb;
+}
+
+.border {
+  border: 1px solid var(--border-color);
+}
+
+.border-t {
+  border-top: 1px solid var(--border-color);
+}
+
+.border-b {
+  border-bottom: 1px solid var(--border-color);
 } 

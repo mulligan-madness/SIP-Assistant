@@ -217,26 +217,6 @@ RareDAO governs the SuperRare protocol, focusing on:
 
 Visit [forum.rare.xyz](https://forum.rare.xyz) for more information about RareDAO and SuperRare.
 
-## 🔄 Roadmap
-
-### Q2 2024
-- TypeScript migration
-- Enhanced test coverage
-- Performance optimizations
-- UI/UX improvements
-
-### Q3 2024
-- Advanced analytics
-- Multi-language support
-- Enhanced security features
-- API documentation
-
-### Q4 2024
-- Mobile optimization
-- Integration improvements
-- Advanced caching
-- Community features
-
 ## 📚 Additional Resources
 
 - [SuperRare Documentation](https://docs.rare.xyz)

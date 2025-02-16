@@ -223,3 +223,103 @@ Visit [forum.rare.xyz](https://forum.rare.xyz) for more information about RareDA
 - [RareDAO Governance](https://forum.rare.xyz/c/proposals)
 - [API Documentation](./docs/API.md)
 - [Contributing Guide](./CONTRIBUTING.md)
+
+## Deployment and Build Process
+
+### Frontend Build
+
+To build the Vue.js frontend for production, run:
+
+```bash
+npm run build:frontend
+```
+
+This command uses Vite to generate optimized, production-ready assets in the `dist/` directory.
+
+### Backend Build and Process Manager (PM2)
+
+The backend is a Node.js application. There is no separate build step for the backend code. Instead, you run the backend using Node.js directly. In production, the backend is managed by PM2 (a process manager) to ensure it restarts automatically on failure.
+
+An ecosystem configuration file `ecosystem.config.js` is provided in the project root. This file contains the following configuration:
+
+```javascript
+module.exports = {
+  apps: [
+    {
+      name: "sip-assistant",
+      script: "src/chatbot.js",
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "1G",
+      env: {
+        NODE_ENV: "production"
+      },
+      env_development: {
+        NODE_ENV: "development"
+      }
+    }
+  ]
+}; 
+```
+
+#### Using PM2
+
+1. **Install PM2 Globally (if not already installed):**
+
+   ```bash
+   npm install -g pm2
+   ```
+
+2. **Start the Server with PM2:**
+
+   In production mode, start the backend server with:
+
+   ```bash
+   pm2 start ecosystem.config.js
+   ```
+
+   PM2 will automatically restart the server if it crashes.
+
+3. **Check PM2 Status:**
+
+   Use the following command to view the status of the managed processes:
+
+   ```bash
+   pm2 status
+   ```
+
+4. **Stopping or Deleting the Process:**
+
+   To stop the process:
+
+   ```bash
+   pm2 stop sip-assistant
+   ```
+
+   Or, to completely remove it from PM2's process list:
+
+   ```bash
+   pm2 delete sip-assistant
+   ```
+
+#### Development Mode
+
+For development, you can run the backend without PM2 using:
+
+```bash
+npm run dev:backend
+```
+
+Alternatively, run the combined development environment for both frontend and backend with:
+
+```bash
+npm run dev
+```
+
+### Summary
+
+- **Frontend Build:** Run `npm run build:frontend` to deploy your Vue.js app.
+- **Backend (Production):** Use PM2 with `ecosystem.config.js` to manage the Node.js server.
+- **Stop/Restart PM2 Process:** Use `pm2 stop sip-assistant` or `pm2 delete sip-assistant` to turn it off.
+- **Development:** Use `npm run dev` for a combined dev environment, or `npm run dev:backend` for backend only.

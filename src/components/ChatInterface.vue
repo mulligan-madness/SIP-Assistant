@@ -1,62 +1,162 @@
 <template>
   <div class="chat">
-    <h1>SIP Chat Assistant</h1>
-    <div class="messages" ref="messagesContainer">
-      <div v-for="(message, index) in messages" :key="index" 
-           :class="['message', message.type === 'user' ? 'user-message' : 'bot-message']"
+    <div class="chat__header">
+      <h1 class="chat__title">SIP Chat Assistant</h1>
+      <button 
+        class="chat__settings-button"
+        @click="toggleSettings"
+        aria-label="Settings"
+      >
+        <svg class="chat__settings-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        <span v-if="isDevelopment" class="chat__debug-label">
+          Settings ({{ showSettings ? 'Open' : 'Closed' }})
+        </span>
+      </button>
+    </div>
+
+    <div class="chat__messages" ref="messagesContainer">
+      <div v-for="(message, index) in messages" 
+           :key="index" 
+           :class="['chat__message', `chat__message--${message.type}`]"
            v-html="message.type === 'bot' ? renderMarkdown(message.content) : message.content">
       </div>
-      <div v-if="isLoading" class="message bot-message thinking">
+      <div v-if="isLoading" class="chat__message chat__message--thinking">
         <span>Thinking</span>
-        <div class="thinking-dots">
+        <div class="chat__thinking-dots">
           <span></span>
           <span></span>
           <span></span>
         </div>
-        <span class="thinking-timer">{{ thinkingTime }}</span>
+        <span class="chat__thinking-timer">{{ thinkingTime }}</span>
       </div>
     </div>
     
-    <div class="input-area">
+    <div class="chat__input-area">
       <textarea 
         v-model="inputMessage"
+        class="chat__input"
         placeholder="Ask about SuperRare Improvement Proposals..."
         @keydown.enter.prevent="handleEnter"
         ref="inputField"
         rows="1"
       ></textarea>
-      <button @click="sendMessage" :disabled="isLoading">Send</button>
+      <button 
+        class="chat__send-button"
+        @click="sendMessage" 
+        :disabled="isLoading || !inputMessage.trim()"
+      >
+        Send
+      </button>
     </div>
     
-    <div class="chat-controls">
-      <button @click="exportHistory">Export Chat History</button>
-      <button @click="enforceSectionHeaders">Enforce Section Headers</button>
-      <button @click="askForPrettyText">Ask for Pretty Text</button>
-      <button @click="askForMarkdown">Ask for Markdown</button>
+    <div class="chat__controls">
+      <button class="chat__control-button" @click="exportHistory">
+        Export Chat History
+      </button>
+      <button class="chat__control-button" @click="enforceSectionHeaders">
+        Enforce Section Headers
+      </button>
+      <button class="chat__control-button" @click="askForPrettyText">
+        Ask for Pretty Text
+      </button>
+      <button class="chat__control-button" @click="askForMarkdown">
+        Ask for Markdown
+      </button>
     </div>
+
+    <Transition name="fade">
+      <SettingsModal 
+        v-if="showSettings"
+        :show="showSettings"
+        @close="handleSettingsClose"
+      />
+    </Transition>
   </div>
 </template>
 
 <script>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { marked } from 'marked'
 import Prism from 'prismjs'
+import SettingsModal from './SettingsModal.vue'
 
 export default {
   name: 'ChatInterface',
+  components: {
+    SettingsModal
+  },
   setup() {
+    const isDevelopment = computed(() => process.env.NODE_ENV === 'development')
+    
+    if (isDevelopment.value) {
+      console.log('ChatInterface setup starting')
+    }
+
+    // State management
     const messages = ref([])
     const inputMessage = ref('')
     const isLoading = ref(false)
     const thinkingTime = ref('0:00')
     const messagesContainer = ref(null)
     const inputField = ref(null)
+    const showSettings = ref(false)
+    const serverInitialized = ref(false)
+    const initializationChecked = ref(false)
     let thinkingInterval = null
     const sessionId = ref(Math.random().toString(36).substring(7))
 
-    // Add server status tracking
-    const serverInitialized = ref(false)
-    const initializationChecked = ref(false)
+    // State change handlers
+    const toggleSettings = () => {
+      if (isDevelopment.value) {
+        console.log('Toggle settings called, current value:', showSettings.value)
+      }
+      showSettings.value = !showSettings.value
+    }
+
+    const handleSettingsClose = () => {
+      if (isDevelopment.value) {
+        console.log('Settings modal closing')
+      }
+      showSettings.value = false
+    }
+
+    // Watchers
+    watch(showSettings, (newValue) => {
+      if (isDevelopment.value) {
+        console.log('showSettings changed to:', newValue)
+      }
+    })
+
+    watch(messages, () => {
+      scrollToBottom()
+    }, { deep: true })
+
+    watch(serverInitialized, (initialized) => {
+      if (initialized) {
+        messages.value.push({
+          type: 'bot',
+          content: '👋 Welcome to the SIP Chat Assistant! I can help you with:\n\n' +
+                  '- Understanding SuperRare Improvement Proposals (SIPs)\n' +
+                  '- Explaining specific SIP details and requirements\n' +
+                  '- Providing guidance on SIP formatting and structure\n\n' +
+                  'Feel free to ask any questions!'
+        })
+      }
+    })
+
+    // Lifecycle hooks
+    onMounted(() => {
+      if (isDevelopment.value) {
+        console.log('ChatInterface mounted')
+      }
+      if (inputField.value) {
+        inputField.value.focus()
+      }
+      checkServerStatus()
+    })
 
     // Function to check server status
     const checkServerStatus = async () => {
@@ -205,33 +305,6 @@ export default {
       sendMessage()
     }
 
-    watch(messages, () => {
-      scrollToBottom()
-    }, { deep: true })
-
-    onMounted(() => {
-      if (inputField.value) {
-        inputField.value.focus()
-      }
-      
-      // Start checking server status
-      checkServerStatus()
-    })
-
-    // Watch for server initialization
-    watch(serverInitialized, (initialized) => {
-      if (initialized) {
-        messages.value.push({
-          type: 'bot',
-          content: '👋 Welcome to the SIP Chat Assistant! I can help you with:\n\n' +
-                  '- Understanding SuperRare Improvement Proposals (SIPs)\n' +
-                  '- Explaining specific SIP details and requirements\n' +
-                  '- Providing guidance on SIP formatting and structure\n\n' +
-                  'Feel free to ask any questions!'
-        })
-      }
-    })
-
     return {
       messages,
       inputMessage,
@@ -239,20 +312,26 @@ export default {
       thinkingTime,
       messagesContainer,
       inputField,
+      showSettings,
+      serverInitialized,
+      initializationChecked,
+      isDevelopment,
+      toggleSettings,
+      handleSettingsClose,
       sendMessage,
       handleEnter,
-      renderMarkdown,
       exportHistory,
       enforceSectionHeaders,
       askForPrettyText,
       askForMarkdown,
-      serverInitialized
+      renderMarkdown
     }
   }
 }
 </script>
 
 <style scoped>
+/* Base component */
 .chat {
   max-width: 800px;
   margin: 0 auto;
@@ -266,22 +345,75 @@ export default {
   box-sizing: border-box;
 }
 
-h1 {
-  margin-top: 0;
+/* Header section */
+.chat__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 20px;
+  padding: 0 10px;
+  position: relative;
 }
 
-.messages {
+.chat__title {
+  margin: 0;
+  font-size: 1.8rem;
+  color: var(--text-color);
+}
+
+.chat__settings-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  background: #f8f9fa;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  z-index: 100;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.chat__settings-button:hover {
+  transform: rotate(30deg);
+  background: #f0f0f0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.chat__settings-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--text-color);
+}
+
+.chat__debug-label {
+  position: absolute;
+  top: -20px;
+  right: 0;
+  background: yellow;
+  color: red;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+/* Messages section */
+.chat__messages {
   flex: 1;
   overflow-y: auto;
   padding: 10px;
   margin-bottom: 20px;
-  border: 1px solid #eee;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   min-height: 0;
 }
 
-.message {
+.chat__message {
   max-width: 70%;
   margin: 10px 0;
   padding: 12px;
@@ -289,21 +421,30 @@ h1 {
   line-height: 1.4;
 }
 
-.user-message {
-  background: #1976d2;
+.chat__message--user {
+  background: var(--primary-color);
   color: white;
   margin-left: auto;
   margin-right: 0;
 }
 
-.bot-message {
+.chat__message--bot {
   background: #f5f5f5;
-  color: #333;
+  color: var(--text-color);
   margin-right: auto;
   margin-left: 0;
 }
 
-.input-area {
+.chat__message--thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #666;
+}
+
+/* Input area */
+.chat__input-area {
   display: flex;
   gap: 10px;
   margin-bottom: 10px;
@@ -311,10 +452,10 @@ h1 {
   align-items: flex-start;
 }
 
-textarea {
+.chat__input {
   flex: 1;
   padding: 10px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 16px;
   font-family: inherit;
@@ -326,103 +467,10 @@ textarea {
   margin: 0;
 }
 
-button {
-  padding: 10px 20px;
-  background: #1976d2;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 16px;
-  white-space: nowrap;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-button:hover:not(:disabled) {
-  background: #1565c0;
-}
-
-button:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-.thinking {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: #666;
-}
-
-.thinking-dots {
-  display: flex;
-  gap: 4px;
-}
-
-.thinking-dots span {
-  width: 8px;
-  height: 8px;
-  background: #1976d2;
-  border-radius: 50%;
-  animation: bounce 1.4s infinite ease-in-out;
-}
-
-.thinking-dots span:nth-child(1) { animation-delay: -0.32s; }
-.thinking-dots span:nth-child(2) { animation-delay: -0.16s; }
-
-@keyframes bounce {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
-}
-
-.thinking-timer {
-  margin-left: 8px;
-  font-family: monospace;
-}
-
-.chat-controls {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  width: 100%;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #eee;
-}
-
-.chat-controls button {
-  flex: 1;
-  min-width: 180px;
-  height: 44px;
-  padding: 8px 16px;
-  background: #f8f9fa;
-  color: #1976d2;
-  border: 1px solid #1976d2;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.chat-controls button:hover:not(:disabled) {
-  background: #1976d2;
-  color: white;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(25, 118, 210, 0.1);
-}
-
-.input-area button {
+.chat__send-button {
   height: 44px;
   min-width: 100px;
-  background: #1976d2;
+  background: var(--primary-color);
   color: white;
   border: none;
   border-radius: 6px;
@@ -431,59 +479,72 @@ button:disabled {
   box-shadow: 0 2px 4px rgba(25, 118, 210, 0.1);
 }
 
-.input-area button:hover:not(:disabled) {
-  background: #1565c0;
+.chat__send-button:hover:not(:disabled) {
+  background: var(--primary-dark);
   transform: translateY(-1px);
   box-shadow: 0 3px 6px rgba(21, 101, 192, 0.2);
 }
 
-.input-area button:disabled {
+.chat__send-button:disabled {
   background: #e0e0e0;
   color: #9e9e9e;
   box-shadow: none;
   cursor: not-allowed;
 }
 
+/* Controls section */
+.chat__controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.chat__control-button {
+  flex: 1;
+  min-width: 180px;
+  height: 44px;
+  padding: 8px 16px;
+  background: #f8f9fa;
+  color: var(--primary-color);
+  border: 1px solid var(--primary-color);
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(25, 118, 210, 0.1);
+}
+
+.chat__control-button:hover {
+  background: var(--primary-color);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(25, 118, 210, 0.2);
+}
+
+/* Animations */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* Responsive design */
 @media (min-width: 768px) {
-  .chat-controls {
+  .chat__controls {
     flex-wrap: nowrap;
   }
   
-  .chat-controls button {
+  .chat__control-button {
     min-width: 140px;
   }
-}
-
-:deep(pre[class*="language-"]) {
-  position: relative;
-  border-radius: 6px;
-  margin: 1em 0;
-}
-
-:deep(.copy-button) {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  padding: 4px 8px;
-  font-size: 12px;
-  background: #2d2d2d;
-  border: 1px solid #444;
-  border-radius: 4px;
-  color: #fff;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-:deep(pre[class*="language-"]:hover .copy-button) {
-  opacity: 1;
-}
-
-:deep(.copy-button:hover) {
-  background: #444;
-}
-
-:deep(.copy-button.copied) {
-  background: #4CAF50;
 }
 </style> 

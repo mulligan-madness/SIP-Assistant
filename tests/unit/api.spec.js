@@ -11,15 +11,20 @@ describe('API Endpoints', () => {
 
     expect(response.body).toHaveProperty('llmInitialized')
     expect(response.body).toHaveProperty('dataLoaded')
+    expect(response.body).toHaveProperty('contextCompressed')
   })
 
-  it('initializes LLM provider', async () => {
-    const response = await request(app)
-      .post('/api/init-llm')
-      .send({ provider: '1' })
-      .expect('Content-Type', /json/)
+  it('handles initialization automatically', async () => {
+    // First status check should show initialization in progress
+    const initialStatus = await request(app)
+      .get('/api/status')
       .expect(200)
 
-    expect(response.body).toHaveProperty('success', true)
+    // Status should eventually show initialization complete
+    const finalStatus = await request(app)
+      .get('/api/status')
+      .expect(200)
+
+    expect(finalStatus.body.llmInitialized).toBe(true)
   })
 }) 

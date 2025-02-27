@@ -20,8 +20,17 @@
     <div class="chat__messages" ref="messagesContainer">
       <div v-for="(message, index) in messages" 
            :key="index" 
-           :class="['chat__message', `chat__message--${message.type}`]"
-           v-html="message.type === 'bot' ? renderMarkdown(message.content) : message.content">
+           :class="['chat__message', `chat__message--${message.type}`]">
+           <div class="chat__message-content" v-html="message.type === 'bot' ? renderMarkdown(message.content) : message.content"></div>
+           <button v-if="message.type === 'bot'" 
+                   class="chat__copy-button"
+                   @click="copyToClipboard(message.content)"
+                   title="Copy to clipboard">
+             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+             </svg>
+           </button>
       </div>
       <div v-if="isLoading" class="chat__message chat__message--thinking">
         <span>Thinking</span>
@@ -305,6 +314,15 @@ export default {
       sendMessage()
     }
 
+    const copyToClipboard = async (content) => {
+      try {
+        await navigator.clipboard.writeText(content);
+        // Optional: Show a brief success message or visual feedback
+      } catch (err) {
+        console.error('Failed to copy text: ', err);
+      }
+    };
+
     return {
       messages,
       inputMessage,
@@ -324,7 +342,8 @@ export default {
       enforceSectionHeaders,
       askForPrettyText,
       askForMarkdown,
-      renderMarkdown
+      renderMarkdown,
+      copyToClipboard
     }
   }
 }
@@ -414,11 +433,17 @@ export default {
 }
 
 .chat__message {
+  position: relative;
   max-width: 70%;
   margin: 10px 0;
   padding: 12px;
   border-radius: 8px;
   line-height: 1.4;
+}
+
+.chat__message-content {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .chat__message--user {
@@ -548,5 +573,31 @@ export default {
   .chat__control-button {
     min-width: 140px;
   }
+}
+
+.chat__copy-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  color: var(--text-color);
+}
+
+.chat__message:hover .chat__copy-button {
+  opacity: 1;
+}
+
+.chat__copy-button:hover {
+  background: var(--button-secondary-hover);
+}
+
+.chat__copy-button svg {
+  display: block;
 }
 </style> 

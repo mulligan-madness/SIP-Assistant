@@ -1,9 +1,30 @@
+/* Theme Variables */
 :root {
-  --primary-color: #1976d2;
-  --primary-dark: #1565c0;
-  --text-color: #333;
-  --background-color: #f5f5f5;
-  --border-color: #ddd;
+  /* Dark theme colors */
+  --primary-color: #bb86fc;
+  --primary-dark: #3700b3;
+  --text-color: #e0e0e0;
+  --text-secondary: #aaa;
+  --background-color: #121212;
+  --surface-color: #1e1e1e;
+  --surface-color-secondary: #2c2c2e;
+  --border-color: #333;
+  --input-background: #2c2c2e;
+  --hover-color: #3c3c3e;
+  --disabled-color: #404040;
+  --disabled-text: #666;
+  --code-background: #2c2c2c;
+  --shadow-color: rgba(0, 0, 0, 0.2);
+
+  /* Button theme */
+  --button-primary: #6b4f88;
+  --button-primary-hover: #8b6bae;
+  --button-secondary: #2c2c2e;
+  --button-secondary-hover: #3c3c3e;
+  --button-disabled: #404040;
+  --button-text-primary: #ffffff;
+  --button-text-secondary: var(--text-color);
+  --button-shadow: rgba(0, 0, 0, 0.2);
 }
 
 /* Debug styles - remove after testing */
@@ -74,7 +95,7 @@ button:focus-visible {
 }
 
 .markdown-content code {
-  background: #f4f4f4;
+  background: #2c2c2c;
   padding: 0.2em 0.4em;
   border-radius: 3px;
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
@@ -92,7 +113,7 @@ button:focus-visible {
   margin: 0.5em 0;
   padding-left: 1em;
   border-left: 4px solid var(--border-color);
-  color: #666;
+  color: var(--text-color);
 }
 
 .markdown-content img {
@@ -173,19 +194,19 @@ button:focus-visible {
 }
 
 .text-gray-600 {
-  color: #666;
+  color: #aaa;
 }
 
 .text-gray-800 {
-  color: #333;
+  color: #eee;
 }
 
 .bg-white {
-  background-color: white;
+  background-color: #1e1e1e;
 }
 
 .bg-gray-50 {
-  background-color: #f9fafb;
+  background-color: #181818;
 }
 
 .border {

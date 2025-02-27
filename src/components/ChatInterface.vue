@@ -291,17 +291,17 @@ export default {
     }
 
     const enforceSectionHeaders = () => {
-      inputMessage.value = "Please ensure your response includes clear section headers."
+      inputMessage.value = "Please redraft your response to only include the following sections: Title, Summary, Motivation, Specification, Benefits, Drawbacks, Implementation. Please do not include roadmaps or timelines, rather the specific administrative actions which would be necessary to execute immediately upon passage of the proposal."
       sendMessage()
     }
 
     const askForPrettyText = () => {
-      inputMessage.value = "Please format your response to be visually appealing and easy to read."
+      inputMessage.value = "Please provide your response as formatted markdown text."
       sendMessage()
     }
 
     const askForMarkdown = () => {
-      inputMessage.value = "Please provide your response in markdown format."
+      inputMessage.value = "Please provide your response as raw markdown code."
       sendMessage()
     }
 
@@ -335,9 +335,9 @@ export default {
 .chat {
   max-width: 800px;
   margin: 0 auto;
-  background: white;
+  background: var(--surface-color);
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px var(--shadow-color);
   padding: 20px;
   height: calc(100vh - 40px);
   display: flex;
@@ -369,19 +369,19 @@ export default {
   width: 40px;
   height: 40px;
   padding: 8px;
-  background: #f8f9fa;
+  background: var(--button-secondary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   cursor: pointer;
   z-index: 100;
   transition: all 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px var(--button-shadow);
 }
 
 .chat__settings-button:hover {
   transform: rotate(30deg);
-  background: #f0f0f0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: var(--button-secondary-hover);
+  box-shadow: 0 2px 4px var(--button-shadow);
 }
 
 .chat__settings-icon {
@@ -429,7 +429,7 @@ export default {
 }
 
 .chat__message--bot {
-  background: #f5f5f5;
+  background: var(--surface-color);
   color: var(--text-color);
   margin-right: auto;
   margin-left: 0;
@@ -440,7 +440,7 @@ export default {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 /* Input area */
@@ -465,29 +465,31 @@ export default {
   overflow-y: auto;
   line-height: 1.4;
   margin: 0;
+  background: #2c2c2e;
+  color: var(--text-color);
 }
 
 .chat__send-button {
   height: 44px;
   min-width: 100px;
-  background: var(--primary-color);
-  color: white;
+  background: var(--button-primary);
+  color: var(--button-text-primary);
   border: none;
   border-radius: 6px;
   font-weight: 500;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 4px rgba(25, 118, 210, 0.1);
+  box-shadow: 0 2px 4px var(--button-shadow);
 }
 
 .chat__send-button:hover:not(:disabled) {
-  background: var(--primary-dark);
+  background: var(--button-primary-hover);
   transform: translateY(-1px);
-  box-shadow: 0 3px 6px rgba(21, 101, 192, 0.2);
+  box-shadow: 0 3px 6px var(--button-shadow);
 }
 
 .chat__send-button:disabled {
-  background: #e0e0e0;
-  color: #9e9e9e;
+  background: var(--button-disabled);
+  color: var(--button-text-secondary);
   box-shadow: none;
   cursor: not-allowed;
 }
@@ -508,22 +510,22 @@ export default {
   min-width: 180px;
   height: 44px;
   padding: 8px 16px;
-  background: #f8f9fa;
-  color: var(--primary-color);
-  border: 1px solid var(--primary-color);
+  background: var(--button-secondary);
+  color: var(--button-text-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
   transition: all 0.2s ease;
   white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(25, 118, 210, 0.1);
+  box-shadow: 0 1px 2px var(--button-shadow);
 }
 
 .chat__control-button:hover {
-  background: var(--primary-color);
-  color: white;
+  background: var(--button-primary);
+  color: var(--button-text-primary);
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(25, 118, 210, 0.2);
+  box-shadow: 0 2px 4px var(--button-shadow);
 }
 
 /* Animations */

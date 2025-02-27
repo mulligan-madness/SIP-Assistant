@@ -330,7 +330,7 @@ export default {
 }
 
 .settings-modal__content {
-  background: white;
+  background: var(--surface-color);
   border-radius: 12px;
   padding: 30px;
   width: 90%;
@@ -341,7 +341,7 @@ export default {
 
 .settings-modal__title {
   font-size: 1.8rem;
-  color: #333;
+  color: var(--text-color);
   margin: 0 0 20px 0;
 }
 
@@ -351,7 +351,7 @@ export default {
 
 .settings-section h3 {
   font-size: 1.2rem;
-  color: #333;
+  color: var(--text-color);
   margin: 0 0 15px 0;
 }
 
@@ -365,25 +365,29 @@ export default {
   flex: 1;
   min-width: 150px;
   height: 44px;
-  background: #1976d2;
-  color: white;
-  border: none;
+  background: var(--button-secondary);
+  color: var(--button-text-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px var(--button-shadow);
 }
 
 .action-button:hover:not(:disabled) {
-  background: #1565c0;
-  transform: none;
+  background: var(--button-primary);
+  color: var(--button-text-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px var(--button-shadow);
 }
 
 .action-button:disabled {
-  background: #e0e0e0;
-  color: #9e9e9e;
+  background: var(--button-disabled);
+  color: var(--button-text-secondary);
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .settings-modal__status {
@@ -394,18 +398,18 @@ export default {
 }
 
 .settings-modal__status--success {
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: var(--surface-color-secondary);
+  color: var(--button-primary);
 }
 
 .settings-modal__status--error {
-  background: #ffebee;
-  color: #c62828;
+  background: var(--surface-color-secondary);
+  color: #ff6b6b;
 }
 
 .settings-modal__status--info {
-  background: #e3f2fd;
-  color: #1565c0;
+  background: var(--surface-color-secondary);
+  color: var(--button-primary);
 }
 
 .fade-enter-active,
@@ -435,7 +439,7 @@ export default {
 .scraping-status {
   margin-top: 15px;
   padding: 15px;
-  background: #f5f5f5;
+  background: var(--surface-color);
   border-radius: 6px;
   display: flex;
   align-items: center;
@@ -451,8 +455,8 @@ export default {
 .loading-spinner {
   width: 24px;
   height: 24px;
-  border: 3px solid #e0e0e0;
-  border-top: 3px solid #1976d2;
+  border: 3px solid var(--text-color);
+  border-top: 3px solid var(--button-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -462,13 +466,13 @@ export default {
 }
 
 .scraping-message {
-  color: #333;
+  color: var(--text-color);
   font-size: 0.9rem;
   margin-bottom: 4px;
 }
 
 .scraping-timer {
-  color: #666;
+  color: var(--text-secondary);
   font-size: 0.8rem;
   font-family: monospace;
 }

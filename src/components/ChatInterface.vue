@@ -1,81 +1,46 @@
 <template>
   <div class="chat">
-    <div class="chat__header">
-      <h1 class="chat__title">SIP Chat Assistant</h1>
-      <button 
-        class="chat__settings-button"
-        @click="toggleSettings"
-        aria-label="Settings"
-      >
-        <svg class="chat__settings-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"></circle>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-        </svg>
-        <span v-if="isDevelopment" class="chat__debug-label">
-          Settings ({{ showSettings ? 'Open' : 'Closed' }})
-        </span>
-      </button>
-    </div>
-
+    <!-- Chat Header -->
+    <ChatHeader 
+      :showSettings="showSettings" 
+      @toggle-settings="toggleSettings"
+    />
+    
+    <!-- Messages Container -->
     <div class="chat__messages" ref="messagesContainer">
-      <div v-for="(message, index) in messages" 
-           :key="index" 
-           :class="['chat__message', `chat__message--${message.type}`]">
-           <div class="chat__message-content" v-html="message.type === 'bot' ? renderMarkdown(message.content) : message.content"></div>
-           <button v-if="message.type === 'bot'" 
-                   class="chat__copy-button"
-                   @click="copyToClipboard(message.content)"
-                   title="Copy to clipboard">
-             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-             </svg>
-           </button>
-      </div>
-      <div v-if="isLoading" class="chat__message chat__message--thinking">
-        <span>Thinking</span>
-        <div class="chat__thinking-dots">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
-        <span class="chat__thinking-timer">{{ thinkingTime }}</span>
-      </div>
+      <MessageList 
+        :messages="messages"
+        @copy="handleCopy"
+      />
+      <ThinkingIndicator 
+        :isLoading="isLoading"
+        :thinkingTime="thinkingTime"
+      />
     </div>
     
-    <div class="chat__input-area">
-      <textarea 
-        v-model="inputMessage"
-        class="chat__input"
-        placeholder="Ask about SuperRare Improvement Proposals..."
-        @keydown.enter.prevent="handleEnter"
-        ref="inputField"
-        rows="1"
-      ></textarea>
-      <button 
-        class="chat__send-button"
-        @click="sendMessage" 
-        :disabled="isLoading || !inputMessage.trim()"
-      >
-        Send
-      </button>
-    </div>
+    <!-- Input Area -->
+    <MessageInput 
+      :isLoading="isLoading"
+      @send="handleSendMessage"
+    />
     
-    <div class="chat__controls">
-      <button class="chat__control-button" @click="exportHistory">
-        Export Chat History
-      </button>
-      <button class="chat__control-button" @click="enforceSectionHeaders">
-        Enforce Section Headers
-      </button>
-      <button class="chat__control-button" @click="askForPrettyText">
-        Ask for Pretty Text
-      </button>
-      <button class="chat__control-button" @click="askForMarkdown">
-        Ask for Markdown
-      </button>
-    </div>
+    <!-- Control Buttons -->
+    <ControlButtons 
+      @export="exportHistory"
+      @enforce="enforceSectionHeaders"
+      @pretty="askForPrettyText"
+      @markdown="askForMarkdown"
+      @research="toggleResearch"
+    />
 
+    <!-- Research Panel -->
+    <ResearchPanel 
+      :visible="showResearch"
+      :researchData="researchData"
+      @toggle="toggleResearch"
+    />
+
+    <!-- Settings Modal -->
     <Transition name="fade">
       <SettingsModal 
         v-if="showSettings"
@@ -92,18 +57,28 @@ import { marked } from 'marked'
 import Prism from 'prismjs'
 import SettingsModal from './SettingsModal.vue'
 
+// Import new components
+import ChatHeader from './chat/ChatHeader.vue'
+import MessageList from './chat/MessageList.vue'
+import ThinkingIndicator from './chat/ThinkingIndicator.vue'
+import MessageInput from './chat/MessageInput.vue'
+import ControlButtons from './chat/ControlButtons.vue'
+import ResearchPanel from './research/ResearchPanel.vue'
+
 export default {
   name: 'ChatInterface',
   components: {
-    SettingsModal
+    SettingsModal,
+    ChatHeader,
+    MessageList,
+    ThinkingIndicator,
+    MessageInput,
+    ControlButtons,
+    ResearchPanel
   },
   setup() {
     const isDevelopment = computed(() => process.env.NODE_ENV === 'development')
     
-    if (isDevelopment.value) {
-      console.log('ChatInterface setup starting')
-    }
-
     // State management
     const messages = ref([])
     const inputMessage = ref('')
@@ -114,29 +89,71 @@ export default {
     const showSettings = ref(false)
     const serverInitialized = ref(false)
     const initializationChecked = ref(false)
+    const showResearch = ref(false)
+    const researchData = ref({
+      documents: [
+        {
+          title: "SIP-15: Governance Framework",
+          source: "SuperRare Forum",
+          date: "2022-05-12",
+          excerpt: "This proposal outlines the governance framework for the SuperRare DAO, including voting mechanisms and proposal requirements."
+        },
+        {
+          title: "SIP-23: Treasury Management",
+          source: "SuperRare Forum",
+          date: "2022-08-03",
+          excerpt: "A comprehensive approach to managing the DAO treasury, including diversification strategies and spending guidelines."
+        }
+      ],
+      themes: [
+        {
+          title: "Decentralized Decision Making",
+          description: "Recurring theme around the importance of decentralized governance and inclusive decision-making processes.",
+          tags: ["governance", "voting", "decentralization"]
+        },
+        {
+          title: "Financial Sustainability",
+          description: "Focus on ensuring long-term financial health of the DAO through responsible treasury management.",
+          tags: ["treasury", "finance", "sustainability"]
+        }
+      ],
+      recommendations: [
+        {
+          title: "Enhance Voting Mechanisms",
+          description: "Consider implementing a two-phase voting system to allow for more deliberation on complex proposals.",
+          priority: "high"
+        },
+        {
+          title: "Regular Treasury Reports",
+          description: "Implement quarterly treasury reports to increase transparency and accountability.",
+          priority: "medium"
+        },
+        {
+          title: "Documentation Updates",
+          description: "Update governance documentation to reflect recent changes in the proposal submission process.",
+          priority: "low"
+        }
+      ]
+    })
     let thinkingInterval = null
     const sessionId = ref(Math.random().toString(36).substring(7))
 
     // State change handlers
     const toggleSettings = () => {
-      if (isDevelopment.value) {
-        console.log('Toggle settings called, current value:', showSettings.value)
-      }
       showSettings.value = !showSettings.value
     }
 
     const handleSettingsClose = () => {
-      if (isDevelopment.value) {
-        console.log('Settings modal closing')
-      }
       showSettings.value = false
+    }
+
+    const toggleResearch = () => {
+      showResearch.value = !showResearch.value
     }
 
     // Watchers
     watch(showSettings, (newValue) => {
-      if (isDevelopment.value) {
-        console.log('showSettings changed to:', newValue)
-      }
+      // Settings visibility changed
     })
 
     watch(messages, () => {
@@ -158,9 +175,6 @@ export default {
 
     // Lifecycle hooks
     onMounted(() => {
-      if (isDevelopment.value) {
-        console.log('ChatInterface mounted')
-      }
       if (inputField.value) {
         inputField.value.focus()
       }
@@ -220,8 +234,7 @@ export default {
       }
     }
 
-    const sendMessage = async () => {
-      if (!inputMessage.value.trim() || isLoading.value) return;
+    const handleSendMessage = async (messageText) => {
       if (!serverInitialized.value) {
         messages.value.push({ 
           type: 'bot', 
@@ -231,9 +244,7 @@ export default {
         return;
       }
 
-      const userMessage = inputMessage.value.trim();
-      messages.value.push({ type: 'user', content: userMessage });
-      inputMessage.value = ''; // Clear input immediately after pushing message
+      messages.value.push({ type: 'user', content: messageText });
       scrollToBottom();
       
       isLoading.value = true;
@@ -245,7 +256,7 @@ export default {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            message: userMessage,
+            message: messageText,
             sessionId: sessionId.value
           })
         });
@@ -279,12 +290,6 @@ export default {
       }
     };
 
-    const handleEnter = (e) => {
-      if (e.shiftKey) return;
-      e.preventDefault(); // Prevent newline
-      sendMessage();
-    };
-
     const exportHistory = () => {
       const historyText = messages.value
         .map(m => `${m.type.toUpperCase()}: ${m.content}`)
@@ -300,28 +305,20 @@ export default {
     }
 
     const enforceSectionHeaders = () => {
-      inputMessage.value = "Please redraft your response to only include the following sections: Title, Summary, Motivation, Specification, Benefits, Drawbacks, Implementation. Please do not include roadmaps or timelines, rather the specific administrative actions which would be necessary to execute immediately upon passage of the proposal."
-      sendMessage()
+      handleSendMessage("Please redraft your response to only include the following sections: Title, Summary, Motivation, Specification, Benefits, Drawbacks, Implementation. Please do not include roadmaps or timelines, rather the specific administrative actions which would be necessary to execute immediately upon passage of the proposal.")
     }
 
     const askForPrettyText = () => {
-      inputMessage.value = "Please provide your response as formatted markdown text."
-      sendMessage()
+      handleSendMessage("Please provide your response as formatted markdown text.")
     }
 
     const askForMarkdown = () => {
-      inputMessage.value = "Please provide your response as raw markdown code."
-      sendMessage()
+      handleSendMessage("Please provide your response as raw markdown code.")
     }
 
-    const copyToClipboard = async (content) => {
-      try {
-        await navigator.clipboard.writeText(content);
-        // Optional: Show a brief success message or visual feedback
-      } catch (err) {
-        console.error('Failed to copy text: ', err);
-      }
-    };
+    const handleCopy = (content) => {
+      // Copy functionality handled by component
+    }
 
     return {
       messages,
@@ -333,17 +330,19 @@ export default {
       showSettings,
       serverInitialized,
       initializationChecked,
+      showResearch,
+      researchData,
       isDevelopment,
       toggleSettings,
       handleSettingsClose,
-      sendMessage,
-      handleEnter,
+      handleSendMessage,
       exportHistory,
       enforceSectionHeaders,
       askForPrettyText,
       askForMarkdown,
       renderMarkdown,
-      copyToClipboard
+      handleCopy,
+      toggleResearch
     }
   }
 }
@@ -364,63 +363,6 @@ export default {
   box-sizing: border-box;
 }
 
-/* Header section */
-.chat__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding: 0 10px;
-  position: relative;
-}
-
-.chat__title {
-  margin: 0;
-  font-size: 1.8rem;
-  color: var(--text-color);
-}
-
-.chat__settings-button {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  padding: 8px;
-  background: var(--button-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  cursor: pointer;
-  z-index: 100;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 2px var(--button-shadow);
-}
-
-.chat__settings-button:hover {
-  transform: rotate(30deg);
-  background: var(--button-secondary-hover);
-  box-shadow: 0 2px 4px var(--button-shadow);
-}
-
-.chat__settings-icon {
-  width: 24px;
-  height: 24px;
-  color: var(--text-color);
-}
-
-.chat__debug-label {
-  position: absolute;
-  top: -20px;
-  right: 0;
-  background: yellow;
-  color: red;
-  font-size: 12px;
-  padding: 2px 4px;
-  border-radius: 4px;
-  font-weight: bold;
-}
-
 /* Messages section */
 .chat__messages {
   flex: 1;
@@ -432,127 +374,6 @@ export default {
   min-height: 0;
 }
 
-.chat__message {
-  position: relative;
-  max-width: 70%;
-  margin: 10px 0;
-  padding: 12px;
-  border-radius: 8px;
-  line-height: 1.4;
-}
-
-.chat__message-content {
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-
-.chat__message--user {
-  background: var(--primary-color);
-  color: white;
-  margin-left: auto;
-  margin-right: 0;
-}
-
-.chat__message--bot {
-  background: var(--surface-color);
-  color: var(--text-color);
-  margin-right: auto;
-  margin-left: 0;
-}
-
-.chat__message--thinking {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-
-/* Input area */
-.chat__input-area {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
-  width: 100%;
-  align-items: flex-start;
-}
-
-.chat__input {
-  flex: 1;
-  padding: 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-size: 16px;
-  font-family: inherit;
-  resize: none;
-  min-height: 40px;
-  max-height: 200px;
-  overflow-y: auto;
-  line-height: 1.4;
-  margin: 0;
-  background: #2c2c2e;
-  color: var(--text-color);
-}
-
-.chat__send-button {
-  height: 44px;
-  min-width: 100px;
-  background: var(--button-primary);
-  color: var(--button-text-primary);
-  border: none;
-  border-radius: 6px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 4px var(--button-shadow);
-}
-
-.chat__send-button:hover:not(:disabled) {
-  background: var(--button-primary-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 3px 6px var(--button-shadow);
-}
-
-.chat__send-button:disabled {
-  background: var(--button-disabled);
-  color: var(--button-text-secondary);
-  box-shadow: none;
-  cursor: not-allowed;
-}
-
-/* Controls section */
-.chat__controls {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  width: 100%;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-color);
-}
-
-.chat__control-button {
-  flex: 1;
-  min-width: 180px;
-  height: 44px;
-  padding: 8px 16px;
-  background: var(--button-secondary);
-  color: var(--button-text-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  box-shadow: 0 1px 2px var(--button-shadow);
-}
-
-.chat__control-button:hover {
-  background: var(--button-primary);
-  color: var(--button-text-primary);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px var(--button-shadow);
-}
-
 /* Animations */
 .fade-enter-active,
 .fade-leave-active {
@@ -562,42 +383,5 @@ export default {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
-}
-
-/* Responsive design */
-@media (min-width: 768px) {
-  .chat__controls {
-    flex-wrap: nowrap;
-  }
-  
-  .chat__control-button {
-    min-width: 140px;
-  }
-}
-
-.chat__copy-button {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: var(--surface-color);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 4px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  color: var(--text-color);
-}
-
-.chat__message:hover .chat__copy-button {
-  opacity: 1;
-}
-
-.chat__copy-button:hover {
-  background: var(--button-secondary-hover);
-}
-
-.chat__copy-button svg {
-  display: block;
 }
 </style> 

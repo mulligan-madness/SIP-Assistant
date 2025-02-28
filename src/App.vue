@@ -65,7 +65,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f5f5f5;
+  background: var(--background-color);
 }
 
 .app {
@@ -77,7 +77,7 @@ body {
 .loading-container {
   max-width: 800px;
   margin: 0 auto;
-  background: white;
+  background: #1e1e1e;
   border-radius: 12px;
   padding: 30px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -86,6 +86,6 @@ body {
 
 .loading-message {
   margin-top: 15px;
-  color: #666;
+  color: var(--text-color);
 }
 </style> 

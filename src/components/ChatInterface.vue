@@ -20,8 +20,17 @@
     <div class="chat__messages" ref="messagesContainer">
       <div v-for="(message, index) in messages" 
            :key="index" 
-           :class="['chat__message', `chat__message--${message.type}`]"
-           v-html="message.type === 'bot' ? renderMarkdown(message.content) : message.content">
+           :class="['chat__message', `chat__message--${message.type}`]">
+           <div class="chat__message-content" v-html="message.type === 'bot' ? renderMarkdown(message.content) : message.content"></div>
+           <button v-if="message.type === 'bot'" 
+                   class="chat__copy-button"
+                   @click="copyToClipboard(message.content)"
+                   title="Copy to clipboard">
+             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+             </svg>
+           </button>
       </div>
       <div v-if="isLoading" class="chat__message chat__message--thinking">
         <span>Thinking</span>
@@ -291,19 +300,28 @@ export default {
     }
 
     const enforceSectionHeaders = () => {
-      inputMessage.value = "Please ensure your response includes clear section headers."
+      inputMessage.value = "Please redraft your response to only include the following sections: Title, Summary, Motivation, Specification, Benefits, Drawbacks, Implementation. Please do not include roadmaps or timelines, rather the specific administrative actions which would be necessary to execute immediately upon passage of the proposal."
       sendMessage()
     }
 
     const askForPrettyText = () => {
-      inputMessage.value = "Please format your response to be visually appealing and easy to read."
+      inputMessage.value = "Please provide your response as formatted markdown text."
       sendMessage()
     }
 
     const askForMarkdown = () => {
-      inputMessage.value = "Please provide your response in markdown format."
+      inputMessage.value = "Please provide your response as raw markdown code."
       sendMessage()
     }
+
+    const copyToClipboard = async (content) => {
+      try {
+        await navigator.clipboard.writeText(content);
+        // Optional: Show a brief success message or visual feedback
+      } catch (err) {
+        console.error('Failed to copy text: ', err);
+      }
+    };
 
     return {
       messages,
@@ -324,7 +342,8 @@ export default {
       enforceSectionHeaders,
       askForPrettyText,
       askForMarkdown,
-      renderMarkdown
+      renderMarkdown,
+      copyToClipboard
     }
   }
 }
@@ -335,9 +354,9 @@ export default {
 .chat {
   max-width: 800px;
   margin: 0 auto;
-  background: white;
+  background: var(--surface-color);
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px var(--shadow-color);
   padding: 20px;
   height: calc(100vh - 40px);
   display: flex;
@@ -369,19 +388,19 @@ export default {
   width: 40px;
   height: 40px;
   padding: 8px;
-  background: #f8f9fa;
+  background: var(--button-secondary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   cursor: pointer;
   z-index: 100;
   transition: all 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px var(--button-shadow);
 }
 
 .chat__settings-button:hover {
   transform: rotate(30deg);
-  background: #f0f0f0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: var(--button-secondary-hover);
+  box-shadow: 0 2px 4px var(--button-shadow);
 }
 
 .chat__settings-icon {
@@ -414,11 +433,17 @@ export default {
 }
 
 .chat__message {
+  position: relative;
   max-width: 70%;
   margin: 10px 0;
   padding: 12px;
   border-radius: 8px;
   line-height: 1.4;
+}
+
+.chat__message-content {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .chat__message--user {
@@ -429,7 +454,7 @@ export default {
 }
 
 .chat__message--bot {
-  background: #f5f5f5;
+  background: var(--surface-color);
   color: var(--text-color);
   margin-right: auto;
   margin-left: 0;
@@ -440,7 +465,7 @@ export default {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 /* Input area */
@@ -465,29 +490,31 @@ export default {
   overflow-y: auto;
   line-height: 1.4;
   margin: 0;
+  background: #2c2c2e;
+  color: var(--text-color);
 }
 
 .chat__send-button {
   height: 44px;
   min-width: 100px;
-  background: var(--primary-color);
-  color: white;
+  background: var(--button-primary);
+  color: var(--button-text-primary);
   border: none;
   border-radius: 6px;
   font-weight: 500;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 4px rgba(25, 118, 210, 0.1);
+  box-shadow: 0 2px 4px var(--button-shadow);
 }
 
 .chat__send-button:hover:not(:disabled) {
-  background: var(--primary-dark);
+  background: var(--button-primary-hover);
   transform: translateY(-1px);
-  box-shadow: 0 3px 6px rgba(21, 101, 192, 0.2);
+  box-shadow: 0 3px 6px var(--button-shadow);
 }
 
 .chat__send-button:disabled {
-  background: #e0e0e0;
-  color: #9e9e9e;
+  background: var(--button-disabled);
+  color: var(--button-text-secondary);
   box-shadow: none;
   cursor: not-allowed;
 }
@@ -508,22 +535,22 @@ export default {
   min-width: 180px;
   height: 44px;
   padding: 8px 16px;
-  background: #f8f9fa;
-  color: var(--primary-color);
-  border: 1px solid var(--primary-color);
+  background: var(--button-secondary);
+  color: var(--button-text-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
   transition: all 0.2s ease;
   white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(25, 118, 210, 0.1);
+  box-shadow: 0 1px 2px var(--button-shadow);
 }
 
 .chat__control-button:hover {
-  background: var(--primary-color);
-  color: white;
+  background: var(--button-primary);
+  color: var(--button-text-primary);
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(25, 118, 210, 0.2);
+  box-shadow: 0 2px 4px var(--button-shadow);
 }
 
 /* Animations */
@@ -546,5 +573,31 @@ export default {
   .chat__control-button {
     min-width: 140px;
   }
+}
+
+.chat__copy-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  color: var(--text-color);
+}
+
+.chat__message:hover .chat__copy-button {
+  opacity: 1;
+}
+
+.chat__copy-button:hover {
+  background: var(--button-secondary-hover);
+}
+
+.chat__copy-button svg {
+  display: block;
 }
 </style> 

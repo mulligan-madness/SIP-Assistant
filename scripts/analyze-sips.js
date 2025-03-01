@@ -1,7 +1,6 @@
-const { Storage } = require('../src/storage');
+const { storage } = require('../src/services/storage');
 
 async function analyzeSIPs() {
-  const storage = new Storage();
   const data = await storage.getLatestScrape();
   
   // Group by status

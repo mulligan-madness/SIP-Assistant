@@ -74,33 +74,46 @@ class LLMProviderFactory {
 
   /**
    * Creates an agent-specific provider
-   * @param {string} type - The agent type (e.g., 'retrievalAgent')
+   * @param {string} type - The agent type (e.g., 'retrieval', 'research')
+   * @param {BaseLLMProvider} llmProvider - The underlying LLM provider to use
    * @param {Object} config - Configuration for the agent
    * @returns {BaseLLMProvider} - An agent provider instance
    */
-  static createAgentProvider(type, config) {
-    // The underlying LLM provider to use for this agent
-    const llmType = config.llmProvider || 'openai';
-    const llmConfig = config.llmConfig || {};
+  static createAgentProvider(type, llmProvider, config = {}) {
+    console.log(`[PROVIDER] Creating agent provider: ${type}`);
     
-    // Create the base LLM provider that the agent will use
-    const baseLLMProvider = this.createProvider(llmType, llmConfig);
+    // If llmProvider is a config object instead of a provider instance,
+    // create the provider first
+    if (typeof llmProvider === 'object' && !llmProvider.complete && !llmProvider.chat) {
+      const llmType = llmProvider.provider || 'openai';
+      const llmConfig = llmProvider.config || {};
+      llmProvider = this.createProvider(llmType, llmConfig);
+    }
     
     // Create the appropriate agent provider
     switch (type.toLowerCase()) {
+      case 'retrieval':
       case 'retrievalagent':
-        return new RetrievalAgentProvider(baseLLMProvider, config);
+        console.log(`[PROVIDER] Created RetrievalAgentProvider`);
+        return new RetrievalAgentProvider(llmProvider, config);
         
+      case 'research':
       case 'researchagent':
-        return new ResearchAgentProvider(baseLLMProvider, config);
+        console.log(`[PROVIDER] Created ResearchAgentProvider`);
+        return new ResearchAgentProvider(llmProvider, config);
         
+      case 'interview':
       case 'interviewagent':
-        return new InterviewAgentProvider(baseLLMProvider, config);
+        console.log(`[PROVIDER] Created InterviewAgentProvider`);
+        return new InterviewAgentProvider(llmProvider, config);
         
+      case 'drafting':
       case 'draftingagent':
-        return new DraftingAgentProvider(baseLLMProvider, config);
+        console.log(`[PROVIDER] Created DraftingAgentProvider`);
+        return new DraftingAgentProvider(llmProvider, config);
         
       default:
+        console.error(`[PROVIDER] Unknown agent type: ${type}`);
         throw new Error(`Unknown agent type: ${type}`);
     }
   }
@@ -108,24 +121,26 @@ class LLMProviderFactory {
   /**
    * Gets a provider that supports a specific capability
    * @param {string} capability - The capability needed ('retrieve', 'research', 'interview', 'draft')
+   * @param {BaseLLMProvider} llmProvider - The underlying LLM provider to use
    * @param {Object} config - Configuration for the provider
    * @returns {BaseLLMProvider} - A provider that supports the requested capability
    */
-  static getProviderWithCapability(capability, config = {}) {
+  static getProviderWithCapability(capability, llmProvider, config = {}) {
     // Map capabilities to appropriate agent types
     const capabilityMap = {
-      'retrieve': 'retrievalAgent',
-      'research': 'researchAgent',
-      'interview': 'interviewAgent',
-      'draft': 'draftingAgent'
+      'retrieve': 'retrieval',
+      'research': 'research',
+      'interview': 'interview',
+      'draft': 'drafting'
     };
     
     const agentType = capabilityMap[capability];
     if (!agentType) {
+      console.error(`[PROVIDER] Unknown capability: ${capability}`);
       throw new Error(`Unknown capability: ${capability}`);
     }
     
-    return this.createAgentProvider(agentType, config);
+    return this.createAgentProvider(agentType, llmProvider, config);
   }
 }
 

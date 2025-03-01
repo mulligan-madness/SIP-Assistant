@@ -465,6 +465,121 @@ Develop the Drafting Agent for generating structured governance proposals.
 - Performance is acceptable
 - Branch can be merged back to main
 
+## SPRINT 4.5: Simplified Research Panel MVP
+
+**Branch Name:** `feature/research-panel-mvp`
+
+### Task 1: Implement Basic Research Results Display
+- **Description:** Create a simple, functional display for retrieval results
+- **Steps:**
+  1. Create a minimalist version of `components/research/ResearchPanel.vue`
+  2. Implement a clean list view of retrieved documents with title, date, and relevance score
+  3. Add ability to expand documents to view their content
+  4. Include basic citation information with each result
+- **Testing Criteria:**
+  - Panel displays retrieved documents in a readable format
+  - Users can view document content with a single click
+  - Citation information is clearly presented
+  - UI is responsive and functional across device sizes
+- **Commit Point:** After basic display is implemented and tested
+- **User Validation Method:** Users should verify they can see retrieved documents and read their content without leaving the main interface
+
+### Task 2: Add Basic Error Handling and Resilience
+- **Description:** Ensure the research functionality gracefully handles common failure modes
+- **Steps:**
+  1. Implement basic error states for the research panel (empty results, API errors, etc.)
+  2. Add retry mechanisms for OpenAI API calls with exponential backoff
+  3. Create user-friendly error messages for common failure scenarios
+  4. Add loading states with appropriate visual feedback
+- **Testing Criteria:**
+  - System recovers from temporary API failures
+  - Error states provide clear guidance to users
+  - Loading indicators keep users informed of progress
+  - Empty states suggest next steps for users
+- **Commit Point:** After error handling is implemented and tested
+- **User Validation Method:** Users should deliberately test edge cases like searching for non-existent topics or disconnecting internet temporarily to verify graceful failure handling
+
+### Task 3: Implement Simple Result Integration with Chat
+- **Description:** Allow users to easily reference research results in the chat interface
+- **Steps:**
+  1. Add a "Reference" button to each research result
+  2. Implement functionality to insert a citation into the chat input
+  3. Create a simple preview of referenced content
+  4. Allow basic toggling between chat and research views on mobile
+- **Testing Criteria:**
+  - Citations can be easily inserted into chat
+  - Referenced content is properly formatted
+  - UI remains intuitive and uncluttered
+  - Mobile experience is functional
+- **Commit Point:** After integration is implemented and tested
+- **User Validation Method:** Users should verify they can seamlessly reference research results in their chat conversations with the AI
+
+### Task 4: Add Basic Result Caching
+- **Description:** Implement simple caching to improve performance and reduce API calls
+- **Steps:**
+  1. Implement a basic client-side cache for recent search results
+  2. Add server-side caching for embeddings with reasonable TTL
+  3. Create a simple cache invalidation mechanism when new documents are added
+  4. Add session persistence for research results
+- **Testing Criteria:**
+  - Repeated searches use cached results when appropriate
+  - Cache hits reduce API calls and improve response time
+  - Results persist correctly across user sessions
+  - Cache size is managed to prevent memory issues
+- **Commit Point:** After caching is implemented and tested
+- **User Validation Method:** Users should notice improved performance when repeating similar searches, verifiable by seeing faster load times on subsequent identical queries
+
+### Task 5: Create Simple User Documentation
+- **Description:** Provide clear guidance on how to use the research functionality
+- **Steps:**
+  1. Create simple tooltips for key research panel features
+  2. Add a brief "How to use" section that appears on first use
+  3. Document example queries that demonstrate the system's capabilities
+  4. Add contextual help for common actions
+- **Testing Criteria:**
+  - Documentation is clear and concise
+  - Help is available at the point of need
+  - Examples demonstrate real value to users
+  - New users can quickly understand how to use the feature
+- **Commit Point:** After documentation is implemented and tested
+- **User Validation Method:** New users should be able to effectively use the research panel after reading only the provided documentation, without external guidance
+
+### Sprint 4.5 Completion Checklist:
+- Basic research panel is implemented with essential functionality
+- Error handling provides a smooth user experience
+- Results can be easily referenced in conversations
+- Performance is acceptable with basic caching
+- Users can validate functionality through clear methods
+- Branch can be merged back to main
+
+### User Validation Strategy
+
+To validate the research panel MVP, users should perform the following specific tests:
+
+1. **Core Functionality Test:**
+   - Search for a known governance topic
+   - Verify relevant documents appear in results
+   - Expand a document to view its content
+   - Confirm the information is accurate and properly cited
+
+2. **Workflow Integration Test:**
+   - Start a conversation about a governance topic
+   - Search for related precedents
+   - Reference a result in your conversation
+   - Verify the AI acknowledges and incorporates the reference
+
+3. **Performance Test:**
+   - Perform an initial search and note the response time
+   - Perform the same search again and confirm it's faster
+   - Try variations of the same search to test semantic understanding
+
+4. **Error Recovery Test:**
+   - Search for an obscure or non-existent topic
+   - Verify appropriate empty state handling
+   - Test behavior during API rate limiting or timeout conditions
+
+This minimal approach validates the core value proposition while deferring more complex features until after initial user feedback is received.
+
 ## SPRINT 5: Research Agent Implementation
 
 **Branch Name:** `feature/research-agent`

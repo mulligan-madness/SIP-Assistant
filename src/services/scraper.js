@@ -56,10 +56,20 @@ class DiscourseScraper {
     let page = 0;
     let hasMore = true;
 
+    // Check if forum URL is properly configured
+    if (!this.baseUrl) {
+      const errorMsg = 'Forum base URL is not configured';
+      debug(errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    console.log(`[Scraper] Starting scrape of forum at ${this.baseUrl}`);
+
     while (hasMore) {
       debug(`Fetching page ${page}`);
       try {
         const url = `${this.baseUrl}/c/proposals/18.json?page=${page}`;
+        console.log(`[Scraper] Fetching ${url}`);
         const data = await this.fetchWithRetry(url);
         
         if (!data.topic_list?.topics || data.topic_list.topics.length === 0) {
@@ -67,6 +77,8 @@ class DiscourseScraper {
           hasMore = false;
           break;
         }
+
+        console.log(`[Scraper] Found ${data.topic_list.topics.length} topics on page ${page}`);
 
         const sipPosts = data.topic_list.topics
           .filter(topic => {
@@ -91,9 +103,12 @@ class DiscourseScraper {
 
         if (sipPosts.length > 0) {
           debug(`Found ${sipPosts.length} SIP posts on page ${page}`);
+          console.log(`[Scraper] Found ${sipPosts.length} SIP posts on page ${page}`);
+          
           for (const post of sipPosts) {
             try {
               const topicUrl = `${this.baseUrl}/t/${post.id}.json`;
+              console.log(`[Scraper] Fetching content for SIP: ${post.t}`);
               const topicData = await this.fetchWithRetry(topicUrl);
               
               if (topicData?.post_stream?.posts?.[0]?.cooked) {
@@ -121,11 +136,32 @@ class DiscourseScraper {
         debug(`Moving to page ${page}`);
       } catch (error) {
         debug(`Error scraping page ${page}: ${error.message}`);
+        console.error(`[Scraper] Error scraping page ${page}:`, error);
         hasMore = false;
       }
     }
 
     debug(`Scraping completed. Found ${posts.length} total SIP posts`);
+    console.log(`[Scraper] Scraping completed. Found ${posts.length} total SIP posts`);
+    
+    // If no posts were found, we should handle this gracefully
+    if (posts.length === 0) {
+      console.warn('[Scraper] No SIP posts found during scrape');
+      
+      // For development/testing, create a sample post
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Scraper] Creating sample SIP post for development');
+        posts.push({
+          id: 'sample-123',
+          t: 'SIP-1: Sample Improvement Proposal',
+          d: new Date().toISOString(),
+          c: '# SIP-1: Sample Improvement Proposal\n\nThis is a placeholder SIP created because no real SIPs were found during scraping.\n\n## Purpose\n\nThis SIP serves as a placeholder for development and testing purposes when the forum scraper cannot find actual content.',
+          url: `${this.baseUrl}/t/sample-sip/123`,
+          status: 'Sample'
+        });
+      }
+    }
+
     return { 
       posts, 
       timestamp: new Date().toISOString(),
@@ -133,35 +169,6 @@ class DiscourseScraper {
       categoryId: 18,
       totalPages: page + 1
     };
-  }
-
-  async test() {
-    try {
-      debug('Running scraper test');
-      const testUrl = `${this.baseUrl}/site.json`;
-      const data = await this.fetchWithRetry(testUrl);
-      
-      if (!data.about?.title) {
-        return {
-          success: false,
-          message: 'Invalid forum response - missing title',
-          error: new Error('Invalid forum response structure')
-        };
-      }
-      
-      return {
-        success: true,
-        message: 'Successfully connected to forum',
-        title: data.about.title,
-        description: data.about.description
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: `Test failed: ${error.message}`,
-        error
-      };
-    }
   }
 
   async getCategories() {

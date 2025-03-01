@@ -85,9 +85,11 @@ onMounted(() => {
   color: var(--text-color);
 }
 
-/* Send button styles moved to global CSS */
+/* Send button styles */
 .action-button {
   height: 44px;
-  min-width: 100px;
+  padding: 0 16px;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 </style>

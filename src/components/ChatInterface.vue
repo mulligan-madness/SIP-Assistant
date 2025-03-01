@@ -26,6 +26,7 @@
     
     <!-- Control Buttons -->
     <ControlButtons 
+      :isResearchActive="showResearch"
       @export="exportHistory"
       @enforce="enforceSectionHeaders"
       @pretty="askForPrettyText"
@@ -38,6 +39,7 @@
       :visible="showResearch"
       :researchData="researchData"
       @toggle="toggleResearch"
+      @reference="handleReference"
     />
 
     <!-- Settings Modal -->
@@ -52,7 +54,7 @@
 </template>
 
 <script>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, computed, defineEmits } from 'vue'
 import { marked } from 'marked'
 import Prism from 'prismjs'
 import SettingsModal from './SettingsModal.vue'
@@ -76,7 +78,8 @@ export default {
     ControlButtons,
     ResearchPanel
   },
-  setup() {
+  emits: ['toggle-research'],
+  setup(props, { emit }) {
     const isDevelopment = computed(() => process.env.NODE_ENV === 'development')
     
     // State management
@@ -149,6 +152,7 @@ export default {
 
     const toggleResearch = () => {
       showResearch.value = !showResearch.value
+      emit('toggle-research')
     }
 
     // Watchers
@@ -208,11 +212,22 @@ export default {
     };
 
     const renderMarkdown = (content) => {
-      const rendered = marked(content, { breaks: true })
-      setTimeout(() => {
-        Prism.highlightAll()
-      }, 0)
-      return rendered
+      // Handle null or undefined content
+      if (!content) {
+        console.warn('Received null or undefined content in renderMarkdown');
+        return '';
+      }
+      
+      try {
+        const rendered = marked(content, { breaks: true })
+        setTimeout(() => {
+          Prism.highlightAll()
+        }, 0)
+        return rendered
+      } catch (error) {
+        console.error('Error rendering markdown:', error);
+        return String(content); // Return the content as a string if rendering fails
+      }
     }
 
     const updateThinkingTime = () => {
@@ -253,9 +268,17 @@ export default {
 
       try {
         console.log('Sending chat request to:', '/api/chat');
+        
+        // Convert the frontend message format to the server's expected format
+        const messageHistory = messages.value.map(msg => ({
+          role: msg.type === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        }));
+        
         console.log('Request payload:', JSON.stringify({ 
           message: messageText,
-          sessionId: sessionId.value
+          sessionId: sessionId.value,
+          messageHistory
         }, null, 2));
         
         const response = await fetch('/api/chat', {
@@ -263,7 +286,8 @@ export default {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             message: messageText,
-            sessionId: sessionId.value
+            sessionId: sessionId.value,
+            messageHistory
           })
         });
 
@@ -287,30 +311,77 @@ export default {
           }
         }
         
+        let responseContent = '';
+        
         try {
           console.log('Attempting to parse response as JSON');
-          const data = JSON.parse(responseText);
-          console.log('Successfully parsed response:', data);
-          messages.value.push({ type: 'bot', content: data.response });
-          scrollToBottom();
+          
+          try {
+            // Try to parse as JSON first
+            const parsedResponse = JSON.parse(responseText);
+            console.log('Successfully parsed response:', parsedResponse);
+            
+            // For our API responses that follow the {success, message, sessionId} format
+            if (parsedResponse && typeof parsedResponse.message === 'string') {
+              responseContent = parsedResponse.message;
+              console.log('Extracted message content:', responseContent.substring(0, 50) + '...');
+            }
+            // Fallbacks for other response formats
+            else if (parsedResponse && typeof parsedResponse.response === 'string') {
+              responseContent = parsedResponse.response;
+            }
+            else if (parsedResponse && typeof parsedResponse.content === 'string') {
+              responseContent = parsedResponse.content;
+            }
+            // Last resort - if we can't extract a specific field, just use plain text
+            else {
+              console.warn('Could not find message field in response, using fallback');
+              responseContent = 'The assistant response could not be processed correctly. Please try again.';
+            }
+          } catch (jsonError) {
+            // Not JSON, use as plain text
+            console.log('Response is not JSON, using as plain text');
+            responseContent = responseText;
+          }
+          
+          // Ensure we have content before adding to messages
+          if (responseContent && responseContent.trim() !== '') {
+            // Add the bot message
+            messages.value.push({ 
+              type: 'bot', 
+              content: responseContent
+            });
+            scrollToBottom();
 
-          // Save to localStorage
-          const history = {
-            messages: messages.value,
-            sessionId: sessionId.value,
-            timestamp: new Date().toISOString()
-          };
-          localStorage.setItem('chatHistory', JSON.stringify(history));
+            // Save to localStorage
+            const history = {
+              messages: messages.value,
+              sessionId: sessionId.value,
+              timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('chatHistory', JSON.stringify(history));
+          } else {
+            console.warn('Empty or invalid response content after processing');
+            messages.value.push({ 
+              type: 'bot', 
+              content: 'The server returned an empty response. Please try again.'
+            });
+            scrollToBottom();
+          }
         } catch (parseError) {
-          console.error('Error parsing JSON response:', parseError);
-          console.error('Response that failed to parse:', responseText);
-          throw new Error(`Failed to parse JSON response: ${responseText.substring(0, 100)}...`);
+          console.error('Error processing response:', parseError);
+          console.error('Response that failed to process:', responseText);
+          messages.value.push({ 
+            type: 'bot', 
+            content: 'There was an error processing the response from the server. Please try again.'
+          });
+          scrollToBottom();
         }
       } catch (error) {
-        console.error('Chat error:', error);
+        console.error('Error sending message:', error);
         messages.value.push({ 
           type: 'bot', 
-          content: '❌ Error: ' + (error.message || 'Something went wrong. Please try again.')
+          content: `Error: ${error.message || 'Unknown error occurred'}`
         });
         scrollToBottom();
       } finally {
@@ -349,6 +420,24 @@ export default {
       // Copy functionality handled by component
     }
 
+    const handleReference = (reference) => {
+      if (!reference || !reference.text) return;
+      
+      // Create a reference message to insert into the input
+      const referenceText = `> ${reference.citation}\n\nPlease consider this information: "${reference.text.substring(0, 150)}${reference.text.length > 150 ? '...' : ''}"`;
+      
+      // Get the message input component and update its value
+      const messageInput = document.querySelector('.message-input__textarea');
+      if (messageInput) {
+        messageInput.value = messageInput.value 
+          ? `${messageInput.value}\n\n${referenceText}`
+          : referenceText;
+        
+        // Focus the input
+        messageInput.focus();
+      }
+    };
+
     return {
       messages,
       inputMessage,
@@ -371,7 +460,8 @@ export default {
       askForMarkdown,
       renderMarkdown,
       handleCopy,
-      toggleResearch
+      toggleResearch,
+      handleReference
     }
   }
 }
@@ -396,11 +486,14 @@ export default {
 .chat__messages {
   flex: 1;
   overflow-y: auto;
-  padding: 10px;
+  padding: 15px;
   margin-bottom: 20px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
   min-height: 0;
+  /* Ensure proper space for numbered lists and bullet points */
+  padding-left: 20px;
+  padding-right: 20px;
 }
 
 /* Animations */

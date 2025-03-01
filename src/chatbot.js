@@ -1,19 +1,16 @@
-const path = require('path');
-const fs = require('fs');
 const express = require('express');
 const bodyParser = require('body-parser');
-const axios = require('axios');
-const readline = require('readline');
-const { exec } = require('child_process');
-const util = require('util');
-const execPromise = util.promisify(exec);
-const Spinner = require('./utils/spinner');
-const { DiscourseScraper } = require('./scraper');
-const { Storage } = require('./storage');
+const { body, validationResult } = require('express-validator');
+const path = require('path');
+const fs = require('fs');
+const { configService } = require('./services/config');
+const { ApiService } = require('./services/api');
+const { ChatService } = require('./services/chat');
+const { Storage } = require('./services/storage');
+const { DiscourseScraper } = require('./services/scraper');
 const { LLMProviderFactory } = require('./providers/factory');
 const helmet = require('helmet');
 const cors = require('cors');
-const { body, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
 
 // Load environment variables
@@ -24,8 +21,33 @@ if (!fs.existsSync(envPath)) {
 }
 require('dotenv').config({ path: envPath });
 
+// Initialize Express app
 const app = express();
-const port = 3000;
+const port = configService.getConfigValue('server.port');
+
+// Request logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  
+  if (req.body && Object.keys(req.body).length > 0) {
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+  }
+  
+  // Capture the original res.json method
+  const originalJson = res.json;
+  
+  // Override res.json to log the response
+  res.json = function(body) {
+    const duration = Date.now() - start;
+    console.log(`[${new Date().toISOString()}] Response (${duration}ms):`, JSON.stringify(body, null, 2));
+    
+    // Call the original method
+    return originalJson.call(this, body);
+  };
+  
+  next();
+});
 
 // Middleware
 app.use(bodyParser.json());
@@ -69,7 +91,7 @@ const validateChatInput = [
 ];
 
 const validateProviderInput = [
-  body('provider').isIn(['1', '2', '3']).withMessage('Invalid provider selection'),
+  body('provider').isIn(['1', '2']).withMessage('Invalid provider selection'),
 ];
 
 // Centralized error handling
@@ -92,6 +114,11 @@ app.use((err, req, res, next) => {
     userMessage
   });
 });
+
+// Initialize services
+const apiService = new ApiService(app);
+const chatService = new ChatService();
+const storage = new Storage();
 
 // Initialize server state
 let sipData = [];
@@ -117,51 +144,44 @@ app.use('/api', (req, res, next) => {
 // Automatic initialization function
 async function autoInitialize() {
   try {
+    console.log('Starting server auto-initialization...');
+    
     // Initialize OpenAI provider by default
-    const openaiConfig = {
-      provider: 'openai',
-      config: {
-        apiKey: process.env.OPENAI_API_KEY,
-        model: process.env.OPENAI_MODEL
-      }
-    };
-
+    const openaiConfig = configService.getProviderConfig('openai');
+    
     global.llmProvider = LLMProviderFactory.createProvider(
-      openaiConfig.provider,
-      openaiConfig.config
+      'openai',
+      openaiConfig
     );
     llmInitialized = true;
+    apiService.setLLMInitialized(true);
 
     // Initialize storage and data
-    const storage = new Storage();
     const latestData = await storage.getLatestScrape();
 
     if (latestData) {
       sipData = latestData.posts;
+      apiService.setSIPData(sipData);
     } else {
-      const scraper = new DiscourseScraper(process.env.FORUM_BASE_URL, { debug: true });
+      const forumConfig = configService.getForumConfig();
+      const scraper = new DiscourseScraper(forumConfig.baseUrl, forumConfig.scrapeOptions);
       const scrapedData = await scraper.scrapeAll();
       await storage.saveScrapeResult(scrapedData);
       sipData = scrapedData.posts;
+      apiService.setSIPData(sipData);
     }
 
     // Load or generate compressed context
-    let existingContextExists = false;
-    try {
-      fs.accessSync(compressedContextPath);
-      existingContextExists = true;
-    } catch (err) {
-      // File doesn't exist
+    compressedContext = await storage.getCompressedContext();
+    
+    if (!compressedContext && sipData.length > 0) {
+      compressedContext = await chatService.compressSIPDataWithLLM(sipData);
     }
-
-    if (existingContextExists) {
-      compressedContext = fs.readFileSync(compressedContextPath, 'utf8').split('---')[2].trim();
-    } else {
-      compressedContext = await compressSIPDataWithLLM(sipData);
-      saveCompressedContext();
-    }
-
+    
+    apiService.setCompressedContext(compressedContext);
     isInitialized = true;
+    apiService.setInitialized(true);
+    
     console.log('Server auto-initialization complete!');
   } catch (err) {
     console.error('Error during auto-initialization:', err);
@@ -181,32 +201,22 @@ app.post('/api/init-llm', validateProviderInput, async (req, res, next) => {
 
   try {
     const { provider } = req.body;
-    if (!['1', '2', '3'].includes(provider)) {
+    if (!['1', '2'].includes(provider)) {
       return res.status(400).json({
         error: 'Invalid provider',
-        userMessage: 'Please select a valid provider (1, 2, or 3)'
+        userMessage: 'Please select a valid provider (1 or 2)'
       });
     }
 
     const providerConfig = {
       '1': {
-        provider: 'local',
-        config: {
-          model: process.env.LOCAL_LLM_MODEL || 'phi-4',
-          temperature: 0.7,
-          maxTokens: 15000,
-          baseUrl: process.env.LOCAL_LLM_BASE_URL,
-          execPath: process.env.LOCAL_LLM_EXEC_PATH
-        }
-      },
-      '2': {
         provider: 'openai',
         config: {
           apiKey: process.env.OPENAI_API_KEY,
           model: process.env.OPENAI_MODEL
         }
       },
-      '3': {
+      '2': {
         provider: 'anthropic',
         config: {
           apiKey: process.env.ANTHROPIC_API_KEY,
@@ -300,8 +310,8 @@ app.post('/api/generate-context', async (req, res) => {
     }
 
     console.log('Generating new compressed context...');
-    compressedContext = await compressSIPDataWithLLM(sipData);
-    saveCompressedContext();
+    compressedContext = await chatService.compressSIPDataWithLLM(sipData);
+    apiService.setCompressedContext(compressedContext);
 
     res.json({
       success: true,
@@ -365,7 +375,7 @@ app.post('/api/restart', async (req, res) => {
 });
 
 // Chat endpoint
-app.post('/chat', validateChatInput, async (req, res, next) => {
+app.post('/api/chat', validateChatInput, async (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -374,73 +384,41 @@ app.post('/chat', validateChatInput, async (req, res, next) => {
     });
   }
 
-  if (!llmInitialized || !compressedContext) {
-    return res.status(503).json({
-      error: 'Server not fully initialized',
-      userMessage: 'Please complete the initialization steps before chatting.'
-    });
-  }
-  
   try {
-    // Get or create chat history for this session
-    const sessionId = req.body.sessionId || 'default';
-    if (!chatHistories.has(sessionId)) {
-      chatHistories.set(sessionId, []);
-    }
-    const history = chatHistories.get(sessionId);
-
-    if (!req.body || !req.body.message) {
-      return res.status(400).json({ 
-        error: 'Missing message in request body',
-        userMessage: 'Please provide a message to chat about.'
-      });
-    }
-
-    // Prepare messages
-    const messages = [
-      { role: 'system', content: compressedContext },
-      ...history,
-      { role: 'user', content: req.body.message }
-    ];
-
-    try {
-      const response = await global.llmProvider.chat(messages);
-      
-      // Update history with this exchange
-      history.push(
-        { role: 'user', content: req.body.message },
-        { role: 'assistant', content: response }
-      );
-
-      res.json({ response });
-    } catch (error) {
-      throw error;
-    }
+    const { message, sessionId } = req.body;
+    
+    const result = await chatService.processMessage(
+      message, 
+      sessionId, 
+      compressedContext, 
+      sipData
+    );
+    
+    res.json(result);
   } catch (error) {
-    console.error('Chat processing error:', error);
-    
-    let userMessage = 'An unexpected error occurred. Please try again later.';
-    let statusCode = 500;
-    
-    if (error.code === 'ECONNREFUSED') {
-      statusCode = 503;
-      userMessage = 'Could not connect to LMStudio. Please ensure LMStudio is running and the API is enabled.';
-    } else if (error.response?.status === 429) {
-      statusCode = 429;
-      userMessage = 'The service is currently busy. Please try again in a moment.';
-    } else if (error.message.includes('API key')) {
-      statusCode = 401;
-      userMessage = 'There was an authentication error with the AI service.';
-    } else if (error.message.includes('timeout')) {
-      statusCode = 504;
-      userMessage = 'The request timed out. Please try again.';
-    }
-
-    res.status(statusCode).json({ 
-      error: 'Error processing chat request',
-      userMessage
-    });
+    next(error);
   }
+});
+
+// Get chat history endpoint
+app.get('/api/chat/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+  const history = chatService.getChatHistory(sessionId);
+  res.json({ history });
+});
+
+// Clear chat history endpoint
+app.post('/api/chat/:sessionId/clear', (req, res) => {
+  const { sessionId } = req.params;
+  const result = chatService.clearChatHistory(sessionId);
+  res.json(result);
+});
+
+// Save chat history endpoint
+app.post('/api/chat/:sessionId/save', async (req, res) => {
+  const { sessionId } = req.params;
+  const result = await chatService.saveChatToFile(sessionId);
+  res.json(result);
 });
 
 // Serve index.html for all other routes
@@ -448,234 +426,26 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
 });
 
-// Start the server only if this file is run directly
-if (require.main === module) {
-  app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
-    autoInitialize().catch(err => {
-      console.error('Failed to auto-initialize:', err);
-      process.exit(1);
-    });
-  });
-}
-
-// Export the app for testing
-module.exports = app;
-
-// Add readline interface
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
+// Start the server
+app.listen(port, async () => {
+  console.log(`SIP-Assistant server listening at http://localhost:${port}`);
+  
+  try {
+    await autoInitialize();
+  } catch (err) {
+    console.error('Failed to auto-initialize server:', err);
+  }
 });
 
-// Promisify readline question
-const question = (query) => new Promise((resolve) => rl.question(query, resolve));
-
-// Ensure readline is closed on process exit
-process.on('exit', () => {
-  if (rl) rl.close();
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  if (rl) rl.close();
-  process.exit();
+  console.log('SIGINT received, shutting down gracefully');
+  process.exit(0);
 });
 
-// Helper function to save compressed context
-function saveCompressedContext() {
-  const markdownContent = `---
-  timestamp: ${new Date().toISOString()}
-  type: sip-analysis
-  version: 1.1
-  source: forum.rare.xyz/c/proposals/18
-  ---
-
-  # SuperRare Improvement Proposals Analysis
-
-  ## Instructions for Language Models
-
-  You are a SIP drafting assistant. Users have complete knowledge of SuperRare - focus only on helping write and edit SIPs.
-  
-  Initial Formatting instructions:
-  - When writing, use markdown formatting following the template below.
-  - Use as few sections as possible, but always include summary, background, motivation, specification, benefits, drawbacks, and implementation (in that order).
-  - No additional sections (no Abstract, Vote, Timeline, etc.)
-
-  Use this exact template for all responses unless otherwise specified:
-  \`\`\`markdown
-  # Summary
-  [Write a clear, concise overview of the proposal]
-  
-  # Background
-  [Provide relevant context and history]
-  
-  # Motivation
-  [Explain the reasoning and goals]
-  
-  # Specification
-  [Detail the technical implementation and parameters]
-  
-  # Benefits
-  [List the advantages and positive outcomes]
-  
-  # Drawbacks
-  [Address potential risks and disadvantages]
-  
-  # Implementation
-  [Describe the concrete steps and procedures]
-  \`\`\`
-  
-  Important Context for LLMs:
-  - This analysis is derived from actual SIPs on the SuperRare forum
-  - When users ask about SIP structure, prioritize this guidance over general knowledge
-  - The patterns described here are specific to SuperRare's governance process
-  - When helping draft SIPs, only include the sections specified in the template
-  - If a user's question falls outside this analysis, acknowledge that explicitly
-
-  Collaborative Drafting Instructions:
-  - Your role is strictly to assist with writing and editing
-  - When a user requests changes to a draft SIP, always return the complete SIP with the requested changes
-  - Accept and incorporate feedback iteratively, maintaining consistency across sections
-  - If a user asks to expand or add detail to a section, preserve the existing content while adding the requested information
-  - When making edits, ensure they align with the overall proposal's goals and other sections
-  - If a change would impact other sections, highlight those dependencies
-  - Always maintain proper formatting and section structure during edits
-  - Provide clear explanations of changes made when returning the edited version
-  - Only suggest improvements directly related to writing clarity and completeness
-
-  When editing:
-  - Always return the complete SIP
-  - Preserve existing content when adding details
-  - Maintain consistency across sections
-  - Keep formatting exactly as shown
-  - Format all responses in proper markdown
-
-  Common Use Cases:
-  1. Answering questions about SIP structure and requirements
-  2. Helping users draft new SIP proposals
-  3. Reviewing existing SIPs for completeness
-  4. Explaining the governance process
-  5. Providing examples of successful SIPs
-  6. Making iterative improvements to draft SIPs
-  7. Expanding sections based on feedback
-  8. Refining technical specifications
-  9. Clarifying implementation details
-  10. Strengthening proposal rationale
-
-  ## Analysis
-
-  The Specification section requires:
-  - Comprehensive technical details
-  - All relevant parameters and their values
-  - Interface descriptions where applicable
-  - Data structures and schemas if relevant
-  - Security considerations
-  - Integration requirements
-  - Testing procedures
-  - If the proposal is not technical, comprehensively discuss the specific details of the proposal, defining key concepts and processes necessary for implementation and the reader's understanding.
-
-  ${compressedContext}
-  `;
-
-  fs.writeFileSync(compressedContextPath, markdownContent);
-  console.log('Saved new compressed context to disk as markdown');
-}
-
-async function compressSIPDataWithLLM(sips, maxRetries = 3) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`Compression attempt ${attempt}/${maxRetries}`);
-      
-      // Sort SIPs by date
-      const recentSips = sips
-        .slice()
-        .sort((a, b) => new Date(b.d) - new Date(a.d))
-        .slice(0, 15); // Only take 15 most recent SIPs
-      
-      console.log('\nAnalyzing 15 most recent SIPs:');
-      recentSips.forEach(sip => {
-        console.log(`${sip.t} (${sip.status || 'No status'})`);
-      });
-      console.log('\n');
-      
-      const spinner = new Spinner('Analyzing SIPs and generating compression...');
-      spinner.start();
-      
-      try {
-        const analysisPrompt = `Review these SuperRare Improvement Proposals (SIPs) and provide a high-level overview of RareDAO. Focus on:
-
-        Important: Do not include any analysis or references to:
-        - Space Race program or related proposals
-        - Regular transparency reports
-        - Routine operational updates
-        - Temperature checks or preliminary polls
-        Your analysis should describe RareDAO's core functions and activities.
-
-        Provide a concise overview of:
-        1. Core Business Activities
-        - Main protocol functions
-        - Key revenue streams
-        - Market positioning
-        
-        2. Treasury Operations
-        - Major treasury activities
-        - Investment approaches
-        - Resource allocation patterns
-        
-        3. Protocol Development
-        - Technical infrastructure
-        - Major protocol upgrades
-        - Integration patterns
-        
-        4. Governance Focus
-        - Key governance priorities
-        - Major policy decisions
-        - Strategic directions
-
-        Analyze all ${recentSips.length} SIPs as reference:
-        ${recentSips
-          .filter(sip => {
-            const lowerTitle = sip.t.toLowerCase();
-            const lowerContent = sip.c.toLowerCase();
-            return !(
-              lowerTitle.includes('space') || 
-              lowerContent.includes('space race') ||
-              lowerTitle.includes('transparency') ||
-              lowerContent.includes('transparency report') ||
-              lowerTitle.includes('monthly update') ||
-              lowerContent.includes('monthly update') ||
-              lowerTitle.includes('temperature') ||
-              lowerContent.includes('temperature check') ||
-              lowerTitle.includes('temp check') ||
-              lowerContent.includes('temp check')
-            );
-          })
-          .map(sip => `
-        Title: ${sip.t}
-        Date: ${sip.d}
-        Content: ${sip.c}`).join('\n\n')}
-
-        Provide a concise overview of RareDAO's operations and focus areas based on these proposals. This will be used as context for future proposal drafting.`;
-
-        const response = await global.llmProvider.complete(analysisPrompt);
-        
-        spinner.stop();
-        return response;
-        
-      } catch (error) {
-        spinner.stop();
-        throw error;
-      }
-      
-    } catch (error) {
-      console.error(`Attempt ${attempt} failed:`, error);
-      if (attempt === maxRetries) {
-        throw new Error(`Failed to compress SIP data after ${maxRetries} attempts`);
-      }
-      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-    }
-  }
-}
-
-// Store chat histories by session
-const chatHistories = new Map();
+module.exports = app;

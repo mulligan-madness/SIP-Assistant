@@ -25,7 +25,7 @@ export default {
     const initializeApp = async () => {
       try {
         // Initialize with OpenAI by default
-        await axios.post('/api/init-llm', { provider: '2' })
+        await axios.post('/api/init-llm', { provider: '1' })
         
         // Check if we need to load data and context
         const { data: status } = await axios.get('/api/status')

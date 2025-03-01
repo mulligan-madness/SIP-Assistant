@@ -4,7 +4,7 @@ const debug = require('debug')('chatbot:storage');
 
 class Storage {
   constructor() {
-    this.outputDir = path.join(__dirname, '..', 'output');
+    this.outputDir = path.join(__dirname, '..', '..', 'output');
     if (!fs.existsSync(this.outputDir)) {
       fs.mkdirSync(this.outputDir, { recursive: true });
     }
@@ -44,6 +44,43 @@ class Storage {
       return data;
     } catch (error) {
       debug('Error getting latest scrape:', error);
+      throw error;
+    }
+  }
+  
+  async saveCompressedContext(context) {
+    const filepath = path.join(this.outputDir, 'compressed-context.md');
+    const content = `---
+title: Compressed SIP Context
+date: ${new Date().toISOString()}
+---
+
+${context}`;
+
+    try {
+      await fs.promises.writeFile(filepath, content);
+      debug(`Saved compressed context to ${filepath}`);
+      return filepath;
+    } catch (error) {
+      debug('Error saving compressed context:', error);
+      throw error;
+    }
+  }
+
+  async getCompressedContext() {
+    const filepath = path.join(this.outputDir, 'compressed-context.md');
+    try {
+      if (!fs.existsSync(filepath)) {
+        debug('No compressed context file found');
+        return null;
+      }
+      
+      const content = await fs.promises.readFile(filepath, 'utf8');
+      const contextPart = content.split('---')[2]?.trim();
+      debug(`Loaded compressed context from ${filepath}`);
+      return contextPart || null;
+    } catch (error) {
+      debug('Error getting compressed context:', error);
       throw error;
     }
   }

@@ -6,6 +6,7 @@
         class="research-panel__close-button"
         @click="$emit('toggle')"
         aria-label="Close Research Panel"
+        title="Close panel"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -14,7 +15,7 @@
       </button>
     </div>
     
-    <!-- Search Form -->
+    <!-- Simple Search Form -->
     <div class="research-panel__search">
       <input 
         type="text" 
@@ -22,58 +23,47 @@
         placeholder="Search for relevant documents..." 
         class="research-panel__search-input"
         @keyup.enter="performSearch"
+        title="Enter keywords to search for relevant governance documents"
       />
       <button 
         class="research-panel__search-button"
         @click="performSearch"
         :disabled="isSearching"
+        title="Search for documents related to your query"
       >
         <span v-if="isSearching">Searching...</span>
         <span v-else>Search</span>
       </button>
     </div>
     
-    <!-- Search Options -->
-    <div class="research-panel__options">
-      <div class="research-panel__option">
-        <label for="limit">Results:</label>
-        <select id="limit" v-model="searchOptions.limit" class="research-panel__select">
-          <option value="3">3</option>
-          <option value="5">5</option>
-          <option value="10">10</option>
-          <option value="15">15</option>
-        </select>
-      </div>
-      <div class="research-panel__option">
-        <label for="threshold">Threshold:</label>
-        <select id="threshold" v-model="searchOptions.threshold" class="research-panel__select">
-          <option value="0.5">0.5</option>
-          <option value="0.7">0.7</option>
-          <option value="0.8">0.8</option>
-          <option value="0.9">0.9</option>
-        </select>
-      </div>
-      <div class="research-panel__option research-panel__checkbox">
-        <input type="checkbox" id="enhance" v-model="searchOptions.enhanceQuery">
-        <label for="enhance">Enhance Query</label>
-      </div>
-      <div class="research-panel__option research-panel__checkbox">
-        <input type="checkbox" id="summarize" v-model="searchOptions.summarize">
-        <label for="summarize">Summarize</label>
-      </div>
-    </div>
-    
     <div class="research-panel__content">
+      <!-- First-use Help Message -->
+      <div v-if="!searchAttempted && !searchResults && showHelp" class="research-panel__help">
+        <h3>How to Use Research</h3>
+        <p>Search for governance-related topics to find relevant documents from the knowledge base.</p>
+        <ul>
+          <li><strong>Search:</strong> Enter keywords and press Enter or click Search</li>
+          <li><strong>View Content:</strong> Click "View Content" to read the full document</li>
+          <li><strong>Reference:</strong> Click "Reference" to insert a citation into your chat</li>
+        </ul>
+        <div class="research-panel__help-actions">
+          <button @click="showHelp = false" class="research-panel__help-button">Got it!</button>
+        </div>
+      </div>
+      
       <!-- Loading State -->
-      <div v-if="isSearching" class="research-panel__loading">
+      <div v-else-if="isSearching" class="research-panel__loading">
         <div class="spinner"></div>
         <p>Searching for relevant documents...</p>
       </div>
       
       <!-- Empty State -->
-      <div v-else-if="!searchResults && !researchData" class="research-panel__placeholder">
-        <p>Enter a search query to find relevant governance documents.</p>
-        <p>The system will use vector search to find the most semantically similar content.</p>
+      <div v-else-if="!searchResults || searchResults.length === 0" class="research-panel__placeholder">
+        <p v-if="searchAttempted">No documents found. Try a different search query.</p>
+        <p v-else>Enter a search query to find relevant governance documents.</p>
+        <p v-if="!searchAttempted" class="research-panel__tip">
+          <strong>Tip:</strong> Try searching for topics like "voting", "treasury", or "proposals"
+        </p>
       </div>
       
       <!-- Error State -->
@@ -83,112 +73,47 @@
       </div>
       
       <!-- Results -->
-      <div v-else class="research-panel__sections">
-        <!-- Summary Section (if available) -->
-        <div v-if="searchResults && searchResults.summary" class="research-section">
-          <h3 class="research-section__title">Summary</h3>
-          <div class="research-section__content">
-            <div class="summary-card">
-              <p class="summary-card__text" v-html="formatMarkdown(searchResults.summary)"></p>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Documents Section -->
-        <div class="research-section">
-          <h3 class="research-section__title">
-            Relevant Documents
-            <span v-if="searchResults && searchResults.results" class="research-section__count">
-              ({{ searchResults.results.length }})
-            </span>
-          </h3>
-          
-          <div v-if="searchResults && searchResults.results && searchResults.results.length" class="research-section__content">
-            <div v-for="(doc, index) in searchResults.results" :key="index" class="document-card">
-              <div class="document-card__header">
-                <h4 class="document-card__title">
-                  {{ getDocumentTitle(doc) }}
-                </h4>
-                <span class="document-card__score">{{ (doc.score * 100).toFixed(1) }}% match</span>
-              </div>
-              
-              <div class="document-card__meta">
-                <span class="document-card__source">{{ getDocumentSource(doc) }}</span>
-                <span class="document-card__date">{{ getDocumentDate(doc) }}</span>
-              </div>
-              
-              <p class="document-card__excerpt">{{ doc.text }}</p>
-              
-              <div class="document-card__citation">
-                <strong>Citation:</strong> {{ doc.citation || 'No citation available' }}
-              </div>
-              
-              <div class="document-card__actions">
-                <button 
-                  class="document-card__button"
-                  @click="copyToClipboard(doc.text)"
-                >
-                  Copy Text
-                </button>
-                <button 
-                  class="document-card__button"
-                  @click="copyToClipboard(doc.citation)"
-                >
-                  Copy Citation
-                </button>
-              </div>
+      <div v-else class="research-panel__results">
+        <div v-for="(doc, index) in searchResults" :key="index" class="document-card">
+          <div class="document-card__header">
+            <h3 class="document-card__title">{{ doc.metadata?.title || 'Untitled Document' }}</h3>
+            <div class="document-card__meta">
+              <span class="document-card__date">{{ formatDate(doc.metadata?.date) }}</span>
+              <span class="document-card__score">Relevance: {{ Math.round(doc.score * 100) }}%</span>
             </div>
           </div>
           
-          <div v-else-if="researchData && researchData.documents && researchData.documents.length" class="research-section__content">
-            <!-- Fallback to original research data if available -->
-            <div v-for="(doc, index) in researchData.documents" :key="index" class="document-card">
-              <h4 class="document-card__title">{{ doc.title || `Document ${index + 1}` }}</h4>
-              <div class="document-card__meta">
-                <span class="document-card__source">{{ doc.source || 'Unknown source' }}</span>
-                <span class="document-card__date">{{ doc.date || 'No date' }}</span>
-              </div>
-              <p class="document-card__excerpt">{{ doc.excerpt || 'No excerpt available' }}</p>
-              <div class="document-card__actions">
-                <button class="document-card__button">View Full</button>
-                <button class="document-card__button">Cite</button>
-              </div>
+          <div class="document-card__content" v-if="expandedDocuments[index]">
+            <div class="document-card__text" v-html="formatMarkdown(doc.text)"></div>
+            <div class="document-card__citation">
+              <h4>Citation</h4>
+              <p>{{ generateCitation(doc) }}</p>
+              <button 
+                class="document-card__copy-button"
+                @click="copyToClipboard(generateCitation(doc))"
+                title="Copy citation to clipboard"
+              >
+                Copy
+              </button>
             </div>
           </div>
           
-          <p v-else class="research-section__empty">No documents found. Try adjusting your search query or options.</p>
-        </div>
-        
-        <!-- Themes Section -->
-        <div class="research-section">
-          <h3 class="research-section__title">Key Themes</h3>
-          <div v-if="researchData.themes && researchData.themes.length" class="research-section__content">
-            <div v-for="(theme, index) in researchData.themes" :key="index" class="theme-item">
-              <h4 class="theme-item__title">{{ theme.title || `Theme ${index + 1}` }}</h4>
-              <p class="theme-item__description">{{ theme.description || 'No description available' }}</p>
-              <div class="theme-item__tags">
-                <span v-for="(tag, tagIndex) in theme.tags || []" :key="tagIndex" class="theme-tag">
-                  {{ tag }}
-                </span>
-              </div>
-            </div>
+          <div class="document-card__actions">
+            <button 
+              class="document-card__button"
+              @click="toggleDocument(index)"
+              :title="expandedDocuments[index] ? 'Hide document content' : 'Show full document content'"
+            >
+              {{ expandedDocuments[index] ? 'Collapse' : 'View Content' }}
+            </button>
+            <button 
+              class="document-card__button"
+              @click="referenceDocument(doc)"
+              title="Insert this document as a reference in your chat"
+            >
+              Reference
+            </button>
           </div>
-          <p v-else class="research-section__empty">No themes identified.</p>
-        </div>
-        
-        <!-- Recommendations Section -->
-        <div class="research-section">
-          <h3 class="research-section__title">Recommendations</h3>
-          <div v-if="researchData.recommendations && researchData.recommendations.length" class="research-section__content">
-            <div v-for="(rec, index) in researchData.recommendations" :key="index" class="recommendation-item">
-              <h4 class="recommendation-item__title">{{ rec.title || `Recommendation ${index + 1}` }}</h4>
-              <p class="recommendation-item__description">{{ rec.description || 'No description available' }}</p>
-              <div class="recommendation-item__priority" :class="`priority-${rec.priority || 'medium'}`">
-                {{ rec.priority ? rec.priority.charAt(0).toUpperCase() + rec.priority.slice(1) : 'Medium' }} Priority
-              </div>
-            </div>
-          </div>
-          <p v-else class="research-section__empty">No recommendations available.</p>
         </div>
       </div>
     </div>
@@ -196,7 +121,7 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits, ref, reactive } from 'vue';
+import { defineProps, defineEmits, ref, reactive, onMounted } from 'vue';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
@@ -206,110 +131,195 @@ const props = defineProps({
     type: Boolean,
     required: true,
     default: false
-  },
-  researchData: {
-    type: Object,
-    required: false,
-    default: () => ({})
   }
 });
 
 // Define emits
-defineEmits(['toggle']);
+const emit = defineEmits(['toggle', 'reference']);
 
 // Search state
 const searchQuery = ref('');
 const isSearching = ref(false);
 const searchResults = ref(null);
 const searchError = ref(null);
-const searchOptions = reactive({
-  limit: 5,
-  threshold: 0.7,
-  enhanceQuery: false,
-  summarize: true
+const searchAttempted = ref(false);
+const expandedDocuments = reactive({});
+const searchCache = reactive({});
+const showHelp = ref(true);
+const retryCount = ref(0);
+const maxRetries = 3;
+
+// Check if this is the first time using the panel
+onMounted(() => {
+  const hasUsedResearch = localStorage.getItem('hasUsedResearch');
+  if (hasUsedResearch) {
+    showHelp.value = false;
+  }
 });
 
 // Methods
-const performSearch = async () => {
+const performSearch = async (retry = false) => {
   if (!searchQuery.value.trim()) {
     searchError.value = 'Please enter a search query';
+    return;
+  }
+  
+  if (retry) {
+    retryCount.value++;
+  } else {
+    retryCount.value = 0;
+  }
+  
+  if (retryCount.value > maxRetries) {
+    searchError.value = 'Maximum retry attempts reached. Please try again later.';
+    isSearching.value = false;
+    return;
+  }
+  
+  const query = searchQuery.value.trim();
+  
+  // Check cache first
+  if (searchCache[query] && !retry) {
+    console.log('Using cached results for:', query);
+    searchResults.value = searchCache[query];
+    searchAttempted.value = true;
     return;
   }
   
   try {
     isSearching.value = true;
     searchError.value = null;
+    searchAttempted.value = true;
     
-    // Determine which endpoint to use based on options
-    const endpoint = searchOptions.enhanceQuery || searchOptions.summarize 
-      ? '/api/agent/retrieve' 
-      : '/api/vector/search';
-    
-    const response = await fetch(endpoint, {
+    // Use the simpler vector search endpoint
+    const response = await fetch('/api/vector/search', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        query: searchQuery.value,
-        limit: parseInt(searchOptions.limit),
-        threshold: parseFloat(searchOptions.threshold),
-        enhanceQuery: searchOptions.enhanceQuery,
-        summarize: searchOptions.summarize
-      })
+        query: query,
+        limit: 5,
+        threshold: 0.7
+      }),
+      // Add timeout to prevent hanging requests
+      signal: AbortSignal.timeout(10000)
+    }).catch(error => {
+      if (error.name === 'AbortError') {
+        throw new Error('Search request timed out. Please try again.');
+      }
+      throw error;
     });
     
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Search failed');
+      const errorData = await response.json().catch(() => ({}));
+      
+      // Handle rate limiting or server errors with exponential backoff
+      if (response.status === 429 || response.status >= 500) {
+        const retryDelay = Math.min(1000 * Math.pow(2, retryCount.value), 10000);
+        console.log(`Rate limited or server error. Retrying in ${retryDelay}ms...`);
+        
+        setTimeout(() => {
+          performSearch(true);
+        }, retryDelay);
+        
+        return;
+      }
+      
+      throw new Error(errorData.message || `Failed to search documents (${response.status})`);
     }
     
-    const data = await response.json();
-    searchResults.value = data;
+    const data = await response.json().catch(() => {
+      throw new Error('Failed to parse search results');
+    });
+    
+    if (!data.results) {
+      throw new Error('Invalid response format from server');
+    }
+    
+    searchResults.value = data.results;
+    
+    // Cache the results
+    if (data.results && data.results.length > 0) {
+      searchCache[query] = data.results;
+      
+      // Limit cache size to prevent memory issues
+      const cacheKeys = Object.keys(searchCache);
+      if (cacheKeys.length > 10) {
+        delete searchCache[cacheKeys[0]];
+      }
+    }
+    
+    // Reset expanded state for new results
+    Object.keys(expandedDocuments).forEach(key => {
+      delete expandedDocuments[key];
+    });
+    
+    // Mark that the user has used research
+    localStorage.setItem('hasUsedResearch', 'true');
+    showHelp.value = false;
   } catch (error) {
     console.error('Search error:', error);
-    searchError.value = error.message || 'An error occurred during search';
+    
+    // If it's a network error, try to retry
+    if (error.message.includes('network') || error.message.includes('timeout')) {
+      const retryDelay = Math.min(1000 * Math.pow(2, retryCount.value), 10000);
+      console.log(`Network error. Retrying in ${retryDelay}ms...`);
+      
+      setTimeout(() => {
+        performSearch(true);
+      }, retryDelay);
+      
+      return;
+    }
+    
+    searchError.value = error.message || 'An error occurred while searching';
+    searchResults.value = null;
   } finally {
-    isSearching.value = false;
+    if (retryCount.value === 0 || retryCount.value > maxRetries) {
+      isSearching.value = false;
+    }
   }
 };
 
 const clearError = () => {
   searchError.value = null;
+  retryCount.value = 0;
 };
 
-const getDocumentTitle = (doc) => {
-  if (doc.metadata && doc.metadata.title) {
-    return doc.metadata.title;
-  }
+const toggleDocument = (index) => {
+  expandedDocuments[index] = !expandedDocuments[index];
+};
+
+const referenceDocument = (doc) => {
+  emit('reference', {
+    text: doc.text,
+    citation: generateCitation(doc)
+  });
+};
+
+const formatDate = (dateString) => {
+  if (!dateString) return 'No date';
   
-  // Try to extract a title from the first line
-  const firstLine = doc.text.split('\n')[0].trim();
-  if (firstLine && firstLine.length < 100) {
-    return firstLine;
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString();
+  } catch (e) {
+    return dateString;
   }
+};
+
+const generateCitation = (doc) => {
+  const title = doc.metadata?.title || 'Untitled Document';
+  const date = formatDate(doc.metadata?.date);
+  const source = doc.metadata?.source || 'Unknown Source';
   
-  return 'Untitled Document';
-};
-
-const getDocumentSource = (doc) => {
-  if (doc.metadata && doc.metadata.source) {
-    return doc.metadata.source;
-  }
-  return 'Unknown source';
-};
-
-const getDocumentDate = (doc) => {
-  if (doc.metadata && doc.metadata.date) {
-    return doc.metadata.date;
-  }
-  return 'No date';
+  return `${title} (${date}). ${source}.`;
 };
 
 const copyToClipboard = (text) => {
   navigator.clipboard.writeText(text)
     .then(() => {
-      // Could add a toast notification here
       console.log('Copied to clipboard');
     })
     .catch(err => {
@@ -325,7 +335,7 @@ const formatMarkdown = (text) => {
     return DOMPurify.sanitize(rawHtml);
   } catch (error) {
     console.error('Error rendering markdown:', error);
-    return DOMPurify.sanitize(String(text)); // Return sanitized text if rendering fails
+    return DOMPurify.sanitize(String(text));
   }
 };
 </script>
@@ -338,118 +348,77 @@ const formatMarkdown = (text) => {
   width: 450px;
   max-width: calc(100vw - 40px);
   max-height: calc(100vh - 40px);
-  background: var(--surface-color);
+  background: var(--surface-color, #ffffff);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   z-index: 900;
+  color: var(--text-color, #333333);
 }
 
 .research-panel__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
-  border-bottom: 1px solid var(--border-color);
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
 }
 
 .research-panel__title {
   margin: 0;
-  font-size: 1.2rem;
-  color: var(--text-color);
+  font-size: 18px;
+  font-weight: 600;
 }
 
 .research-panel__close-button {
   background: transparent;
   border: none;
-  color: var(--text-secondary);
   cursor: pointer;
-  padding: 5px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 4px;
+  color: var(--text-secondary, #666666);
   border-radius: 4px;
-  transition: all 0.2s;
 }
 
 .research-panel__close-button:hover {
-  background: var(--button-secondary-hover);
-  color: var(--text-color);
+  background: var(--hover-color, #f0f0f0);
 }
 
 .research-panel__search {
+  padding: 12px 16px;
   display: flex;
-  padding: 15px 20px;
-  border-bottom: 1px solid var(--border-color);
-  gap: 10px;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
 }
 
 .research-panel__search-input {
   flex: 1;
   padding: 8px 12px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-color, #e0e0e0);
   border-radius: 4px;
-  font-size: 0.9rem;
-  background: var(--input-background);
-  color: var(--text-color);
+  font-size: 14px;
 }
 
 .research-panel__search-button {
   padding: 8px 16px;
-  background: var(--button-primary);
-  color: var(--button-text-primary);
+  background: var(--primary-color, #4a6cf7);
+  color: white;
   border: none;
   border-radius: 4px;
-  font-size: 0.9rem;
   cursor: pointer;
-  transition: all 0.2s;
-}
-
-.research-panel__search-button:hover:not(:disabled) {
-  background: var(--button-primary-hover);
+  font-weight: 500;
 }
 
 .research-panel__search-button:disabled {
-  opacity: 0.7;
+  background: var(--disabled-color, #cccccc);
   cursor: not-allowed;
 }
 
-.research-panel__options {
-  display: flex;
-  flex-wrap: wrap;
-  padding: 10px 20px;
-  border-bottom: 1px solid var(--border-color);
-  gap: 15px;
-  font-size: 0.85rem;
-}
-
-.research-panel__option {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.research-panel__select {
-  padding: 4px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--input-background);
-  color: var(--text-color);
-  font-size: 0.85rem;
-}
-
-.research-panel__checkbox {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
 .research-panel__content {
-  padding: 0;
-  overflow-y: auto;
   flex: 1;
+  overflow-y: auto;
+  padding: 16px;
 }
 
 .research-panel__loading {
@@ -457,258 +426,181 @@ const formatMarkdown = (text) => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 0;
-  color: var(--text-secondary);
+  padding: 32px 16px;
+  gap: 16px;
 }
 
 .spinner {
-  border: 3px solid rgba(0, 0, 0, 0.1);
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-color, #e0e0e0);
+  border-top-color: var(--primary-color, #4a6cf7);
   border-radius: 50%;
-  border-top: 3px solid var(--button-primary);
-  width: 30px;
-  height: 30px;
   animation: spin 1s linear infinite;
-  margin-bottom: 15px;
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  to { transform: rotate(360deg); }
 }
 
-.research-panel__placeholder {
-  color: var(--text-secondary);
-  text-align: center;
-  padding: 40px 20px;
-}
-
+.research-panel__placeholder, 
 .research-panel__error {
-  color: var(--error-color);
   text-align: center;
-  padding: 30px 20px;
+  padding: 32px 16px;
+  color: var(--text-secondary, #666666);
 }
 
 .research-panel__error-button {
-  margin-top: 15px;
+  margin-top: 16px;
   padding: 8px 16px;
-  background: var(--button-secondary);
-  color: var(--button-text-secondary);
-  border: 1px solid var(--border-color);
+  background: var(--primary-color, #4a6cf7);
+  color: white;
+  border: none;
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s;
-}
-
-.research-panel__error-button:hover {
-  background: var(--button-secondary-hover);
-}
-
-.research-panel__sections {
-  display: flex;
-  flex-direction: column;
-}
-
-.research-section {
-  padding: 15px 20px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.research-section:last-child {
-  border-bottom: none;
-}
-
-.research-section__title {
-  margin: 0 0 15px 0;
-  font-size: 1rem;
-  color: var(--text-color);
-  display: flex;
-  align-items: center;
-}
-
-.research-section__count {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  margin-left: 8px;
-}
-
-.research-section__content {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.research-section__empty {
-  color: var(--text-secondary);
-  font-style: italic;
-  margin: 10px 0;
-}
-
-.summary-card {
-  background: var(--surface-color-secondary);
-  border-radius: 6px;
-  padding: 15px;
-  border: 1px solid var(--border-color);
-}
-
-.summary-card__text {
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: var(--text-color);
 }
 
 .document-card {
-  background: var(--surface-color-secondary);
+  background: var(--card-bg, #f9f9f9);
   border-radius: 6px;
-  padding: 15px;
-  border: 1px solid var(--border-color);
+  margin-bottom: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border-color, #e0e0e0);
 }
 
 .document-card__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
 }
 
 .document-card__title {
-  margin: 0;
-  font-size: 0.95rem;
-  color: var(--text-color);
-  flex: 1;
-}
-
-.document-card__score {
-  font-size: 0.8rem;
-  background: var(--accent-color-light);
-  color: var(--accent-color);
-  padding: 2px 6px;
-  border-radius: 12px;
-  font-weight: 500;
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .document-card__meta {
   display: flex;
   justify-content: space-between;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--text-secondary, #666666);
 }
 
-.document-card__excerpt {
-  font-size: 0.9rem;
-  margin: 0 0 12px 0;
-  color: var(--text-color);
-  line-height: 1.4;
-  max-height: 200px;
-  overflow-y: auto;
+.document-card__content {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
+}
+
+.document-card__text {
+  margin-bottom: 16px;
+  line-height: 1.5;
 }
 
 .document-card__citation {
-  font-size: 0.85rem;
-  margin: 0 0 12px 0;
-  color: var(--text-secondary);
-  padding: 8px;
-  background: var(--surface-color-tertiary);
+  background: var(--citation-bg, #f0f0f0);
+  padding: 12px;
   border-radius: 4px;
-  border-left: 3px solid var(--accent-color);
+  font-size: 13px;
+}
+
+.document-card__citation h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+}
+
+.document-card__citation p {
+  margin: 0 0 8px 0;
+}
+
+.document-card__copy-button {
+  padding: 4px 8px;
+  background: var(--secondary-color, #e0e0e0);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
 }
 
 .document-card__actions {
   display: flex;
+  padding: 12px 16px;
   gap: 8px;
+  justify-content: flex-end;
 }
 
 .document-card__button {
-  padding: 6px 10px;
-  font-size: 0.8rem;
-  background: var(--button-secondary);
-  color: var(--button-text-secondary);
-  border: 1px solid var(--border-color);
+  padding: 6px 12px;
+  background: var(--button-bg, #f0f0f0);
+  border: 1px solid var(--border-color, #e0e0e0);
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s;
+  font-size: 13px;
 }
 
 .document-card__button:hover {
-  background: var(--button-primary);
-  color: var(--button-text-primary);
+  background: var(--button-hover, #e0e0e0);
 }
 
-.theme-item {
-  background: var(--surface-color-secondary);
+@media (max-width: 768px) {
+  .research-panel {
+    top: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
+  }
+}
+
+.research-panel__help {
+  background: var(--help-bg, #f0f7ff);
   border-radius: 6px;
-  padding: 12px;
-  border: 1px solid var(--border-color);
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--help-border, #d0e3ff);
 }
 
-.theme-item__title {
-  margin: 0 0 8px 0;
-  font-size: 0.95rem;
-  color: var(--text-color);
+.research-panel__help h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: var(--help-title, #2c5282);
 }
 
-.theme-item__description {
-  font-size: 0.9rem;
-  margin: 0 0 10px 0;
-  color: var(--text-color);
-  line-height: 1.4;
+.research-panel__help p {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
-.theme-item__tags {
+.research-panel__help ul {
+  margin: 0 0 16px 0;
+  padding-left: 20px;
+}
+
+.research-panel__help li {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.research-panel__help-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  justify-content: flex-end;
 }
 
-.theme-tag {
-  padding: 2px 8px;
-  background: var(--button-secondary);
-  color: var(--button-text-secondary);
-  border-radius: 12px;
-  font-size: 0.75rem;
+.research-panel__help-button {
+  padding: 6px 12px;
+  background: var(--primary-color, #4a6cf7);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
 }
 
-.recommendation-item {
-  background: var(--surface-color-secondary);
-  border-radius: 6px;
-  padding: 12px;
-  border: 1px solid var(--border-color);
-}
-
-.recommendation-item__title {
-  margin: 0 0 8px 0;
-  font-size: 0.95rem;
-  color: var(--text-color);
-}
-
-.recommendation-item__description {
-  font-size: 0.9rem;
-  margin: 0 0 10px 0;
-  color: var(--text-color);
-  line-height: 1.4;
-}
-
-.recommendation-item__priority {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.priority-high {
-  background: rgba(255, 107, 107, 0.2);
-  color: #ff6b6b;
-}
-
-.priority-medium {
-  background: rgba(255, 159, 67, 0.2);
-  color: #ff9f43;
-}
-
-.priority-low {
-  background: rgba(46, 213, 115, 0.2);
-  color: #2ed573;
+.research-panel__tip {
+  font-size: 13px;
+  color: var(--text-secondary, #666666);
+  margin-top: 12px;
 }
 </style>

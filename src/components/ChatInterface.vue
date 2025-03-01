@@ -39,6 +39,7 @@
       :visible="showResearch"
       :researchData="researchData"
       @toggle="toggleResearch"
+      @reference="handleReference"
     />
 
     <!-- Settings Modal -->
@@ -419,6 +420,24 @@ export default {
       // Copy functionality handled by component
     }
 
+    const handleReference = (reference) => {
+      if (!reference || !reference.text) return;
+      
+      // Create a reference message to insert into the input
+      const referenceText = `> ${reference.citation}\n\nPlease consider this information: "${reference.text.substring(0, 150)}${reference.text.length > 150 ? '...' : ''}"`;
+      
+      // Get the message input component and update its value
+      const messageInput = document.querySelector('.message-input__textarea');
+      if (messageInput) {
+        messageInput.value = messageInput.value 
+          ? `${messageInput.value}\n\n${referenceText}`
+          : referenceText;
+        
+        // Focus the input
+        messageInput.focus();
+      }
+    };
+
     return {
       messages,
       inputMessage,
@@ -441,7 +460,8 @@ export default {
       askForMarkdown,
       renderMarkdown,
       handleCopy,
-      toggleResearch
+      toggleResearch,
+      handleReference
     }
   }
 }

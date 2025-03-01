@@ -32,6 +32,8 @@ class AnthropicProvider extends BaseLLMProvider {
 
   async chat(messages) {
     debug('Sending chat request');
+    console.log(`[ANTHROPIC] Making chat request with ${messages.length} messages`);
+    
     try {
       // Extract system message if present
       const systemMessage = messages.find(m => m.role === 'system')?.content;
@@ -39,7 +41,12 @@ class AnthropicProvider extends BaseLLMProvider {
         role: m.role,
         content: m.content
       }));
+      
+      console.log(`[ANTHROPIC] Using model: ${this.model}`);
+      console.log(`[ANTHROPIC] System message:`, systemMessage ? systemMessage.substring(0, 100) + (systemMessage.length > 100 ? '...' : '') : 'None');
+      console.log(`[ANTHROPIC] First few user messages:`, JSON.stringify(userMessages.slice(0, 2), null, 2));
 
+      console.log(`[ANTHROPIC] Sending request to Anthropic API`);
       const response = await this.client.messages.create({
         model: this.model,
         messages: userMessages,
@@ -48,9 +55,17 @@ class AnthropicProvider extends BaseLLMProvider {
       });
       
       debug('Received chat response');
+      console.log(`[ANTHROPIC] Received response from Anthropic API`);
+      console.log(`[ANTHROPIC] Response:`, JSON.stringify({
+        id: response.id,
+        model: response.model,
+        content: response.content[0].text.substring(0, 100) + (response.content[0].text.length > 100 ? '...' : '')
+      }, null, 2));
+      
       return response.content[0].text;
     } catch (error) {
       debug('Error in chat request:', error.message);
+      console.error(`[ANTHROPIC] Error in chat request:`, error);
       throw error;
     }
   }

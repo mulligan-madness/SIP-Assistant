@@ -25,6 +25,30 @@ require('dotenv').config({ path: envPath });
 const app = express();
 const port = configService.getConfigValue('server.port');
 
+// Request logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  
+  if (req.body && Object.keys(req.body).length > 0) {
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+  }
+  
+  // Capture the original res.json method
+  const originalJson = res.json;
+  
+  // Override res.json to log the response
+  res.json = function(body) {
+    const duration = Date.now() - start;
+    console.log(`[${new Date().toISOString()}] Response (${duration}ms):`, JSON.stringify(body, null, 2));
+    
+    // Call the original method
+    return originalJson.call(this, body);
+  };
+  
+  next();
+});
+
 // Middleware
 app.use(bodyParser.json());
 
@@ -67,7 +91,7 @@ const validateChatInput = [
 ];
 
 const validateProviderInput = [
-  body('provider').isIn(['1', '2', '3']).withMessage('Invalid provider selection'),
+  body('provider').isIn(['1', '2']).withMessage('Invalid provider selection'),
 ];
 
 // Centralized error handling
@@ -177,32 +201,22 @@ app.post('/api/init-llm', validateProviderInput, async (req, res, next) => {
 
   try {
     const { provider } = req.body;
-    if (!['1', '2', '3'].includes(provider)) {
+    if (!['1', '2'].includes(provider)) {
       return res.status(400).json({
         error: 'Invalid provider',
-        userMessage: 'Please select a valid provider (1, 2, or 3)'
+        userMessage: 'Please select a valid provider (1 or 2)'
       });
     }
 
     const providerConfig = {
       '1': {
-        provider: 'local',
-        config: {
-          model: process.env.LOCAL_LLM_MODEL || 'phi-4',
-          temperature: 0.7,
-          maxTokens: 15000,
-          baseUrl: process.env.LOCAL_LLM_BASE_URL,
-          execPath: process.env.LOCAL_LLM_EXEC_PATH
-        }
-      },
-      '2': {
         provider: 'openai',
         config: {
           apiKey: process.env.OPENAI_API_KEY,
           model: process.env.OPENAI_MODEL
         }
       },
-      '3': {
+      '2': {
         provider: 'anthropic',
         config: {
           apiKey: process.env.ANTHROPIC_API_KEY,

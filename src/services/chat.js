@@ -15,10 +15,12 @@ class ChatService {
   async processMessage(message, sessionId, compressedContext, sipData) {
     try {
       debug(`Processing message for session ${sessionId}`);
+      console.log(`[CHAT] Processing message for session ${sessionId}: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`);
       
       // Initialize chat history for this session if it doesn't exist
       if (!this.chatHistory[sessionId]) {
         this.chatHistory[sessionId] = [];
+        console.log(`[CHAT] Initialized new chat history for session ${sessionId}`);
       }
       
       // Add user message to history
@@ -26,18 +28,23 @@ class ChatService {
         role: 'user',
         content: message
       });
+      console.log(`[CHAT] Added user message to history. History length: ${this.chatHistory[sessionId].length}`);
       
       // Prepare the messages array for the LLM
       const messages = this.prepareMessagesForLLM(sessionId, compressedContext, sipData);
+      console.log(`[CHAT] Prepared messages for LLM. Total messages: ${messages.length}`);
       
       // Get response from LLM
+      console.log(`[CHAT] Sending request to LLM provider: ${global.llmProvider ? global.llmProvider.constructor.name : 'undefined'}`);
       const llmResponse = await global.llmProvider.chat(messages);
+      console.log(`[CHAT] Received response from LLM: "${llmResponse.substring(0, 50)}${llmResponse.length > 50 ? '...' : ''}"`);
       
       // Add assistant response to history
       this.chatHistory[sessionId].push({
         role: 'assistant',
         content: llmResponse
       });
+      console.log(`[CHAT] Added assistant response to history. History length: ${this.chatHistory[sessionId].length}`);
       
       // Trim history if it gets too long
       this.trimChatHistory(sessionId);
@@ -47,6 +54,7 @@ class ChatService {
         history: this.chatHistory[sessionId]
       };
     } catch (error) {
+      console.error(`[CHAT] Error processing message:`, error);
       debug(`Error processing message: ${error.message}`);
       throw error;
     }

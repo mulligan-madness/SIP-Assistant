@@ -252,7 +252,13 @@ export default {
       thinkingInterval = setInterval(updateThinkingTime, 1000);
 
       try {
-        const response = await fetch('/chat', {
+        console.log('Sending chat request to:', '/api/chat');
+        console.log('Request payload:', JSON.stringify({ 
+          message: messageText,
+          sessionId: sessionId.value
+        }, null, 2));
+        
+        const response = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -261,22 +267,45 @@ export default {
           })
         });
 
+        console.log('Response status:', response.status);
+        console.log('Response headers:', Object.fromEntries([...response.headers]));
+        
+        // Clone the response and get the text to log it
+        const responseClone = response.clone();
+        const responseText = await responseClone.text();
+        console.log('Raw response text:', responseText);
+        
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.userMessage || errorData.error || 'Network response was not ok');
+          console.error('Error response received:', response.status, responseText);
+          try {
+            const errorData = JSON.parse(responseText);
+            console.error('Parsed error data:', errorData);
+            throw new Error(errorData.userMessage || errorData.error || 'Network response was not ok');
+          } catch (parseError) {
+            console.error('Error parsing error response:', parseError);
+            throw new Error(`Server returned ${response.status}: ${responseText.substring(0, 100)}...`);
+          }
         }
         
-        const data = await response.json();
-        messages.value.push({ type: 'bot', content: data.response });
-        scrollToBottom();
+        try {
+          console.log('Attempting to parse response as JSON');
+          const data = JSON.parse(responseText);
+          console.log('Successfully parsed response:', data);
+          messages.value.push({ type: 'bot', content: data.response });
+          scrollToBottom();
 
-        // Save to localStorage
-        const history = {
-          messages: messages.value,
-          sessionId: sessionId.value,
-          timestamp: new Date().toISOString()
-        };
-        localStorage.setItem('chatHistory', JSON.stringify(history));
+          // Save to localStorage
+          const history = {
+            messages: messages.value,
+            sessionId: sessionId.value,
+            timestamp: new Date().toISOString()
+          };
+          localStorage.setItem('chatHistory', JSON.stringify(history));
+        } catch (parseError) {
+          console.error('Error parsing JSON response:', parseError);
+          console.error('Response that failed to parse:', responseText);
+          throw new Error(`Failed to parse JSON response: ${responseText.substring(0, 100)}...`);
+        }
       } catch (error) {
         console.error('Chat error:', error);
         messages.value.push({ 

@@ -1,4 +1,3 @@
-const { LocalLLMProvider } = require('./local');
 const { OpenAIProvider } = require('./openai');
 const { AnthropicProvider } = require('./anthropic');
 
@@ -23,11 +22,6 @@ class LLMProviderFactory {
     
     // Basic provider validation
     switch (type.toLowerCase()) {
-      case 'local':
-        if (!(config.baseUrl || config.execPath || process.env.LOCAL_LLM_BASE_URL || process.env.LOCAL_LLM_EXEC_PATH)) {
-          throw new Error('Either baseUrl or execPath is required for local provider');
-        }
-        break;
       case 'openai':
         if (!config.apiKey && !process.env.OPENAI_API_KEY) {
           throw new Error('apiKey is required for OpenAI provider (set in config or OPENAI_API_KEY env var)');
@@ -45,35 +39,35 @@ class LLMProviderFactory {
   }
 
   static createProvider(type, config = {}) {
+    console.log(`[PROVIDER] Creating provider of type: ${type}`);
+    console.log(`[PROVIDER] Provider config:`, JSON.stringify(config, (key, value) => 
+      key === 'apiKey' ? '[REDACTED]' : value, 2));
+    
     this.validateConfig(type, config);
     const finalConfig = { ...config };
 
     // Check if this is an agent provider request
     if (type.toLowerCase().includes('agent')) {
+      console.log(`[PROVIDER] Creating agent provider: ${type}`);
       return this.createAgentProvider(type, finalConfig);
     }
 
     // Standard provider creation
     switch (type.toLowerCase()) {
-      case 'local':
-        finalConfig.execPath = config.execPath || process.env.LOCAL_LLM_EXEC_PATH;
-        finalConfig.host = config.host || process.env.LOCAL_LLM_HOST || 'localhost';
-        finalConfig.port = config.port || process.env.LOCAL_LLM_PORT || 1234;
-        finalConfig.model = config.model || process.env.LOCAL_LLM_MODEL || 'phi-4';
-        finalConfig.baseUrl = config.baseUrl || process.env.LOCAL_LLM_BASE_URL || `http://${finalConfig.host}:${finalConfig.port}/v1`;
-        return new LocalLLMProvider(finalConfig);
-        
       case 'openai':
         finalConfig.apiKey = config.apiKey || process.env.OPENAI_API_KEY;
         finalConfig.model = config.model || process.env.OPENAI_MODEL;
+        console.log(`[PROVIDER] Created OpenAIProvider with model: ${finalConfig.model}`);
         return new OpenAIProvider(finalConfig);
         
       case 'anthropic':
         finalConfig.apiKey = config.apiKey || process.env.ANTHROPIC_API_KEY;
         finalConfig.model = config.model || process.env.ANTHROPIC_MODEL;
+        console.log(`[PROVIDER] Created AnthropicProvider with model: ${finalConfig.model}`);
         return new AnthropicProvider(finalConfig);
         
       default:
+        console.error(`[PROVIDER] Unknown provider type: ${type}`);
         throw new Error(`Unknown provider type: ${type}`);
     }
   }

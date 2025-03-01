@@ -22,7 +22,7 @@ const validateChatInput = [
 ];
 
 const validateProviderInput = [
-  body('provider').isIn(['1', '2', '3']).withMessage('Invalid provider selection'),
+  body('provider').isIn(['1', '2']).withMessage('Invalid provider selection'),
 ];
 
 class ApiService {
@@ -117,32 +117,22 @@ class ApiService {
 
       try {
         const { provider } = req.body;
-        if (!['1', '2', '3'].includes(provider)) {
+        if (!['1', '2'].includes(provider)) {
           return res.status(400).json({
             error: 'Invalid provider',
-            userMessage: 'Please select a valid provider (1, 2, or 3)'
+            userMessage: 'Please select a valid provider (1 or 2)'
           });
         }
 
         const providerConfig = {
           '1': {
-            provider: 'local',
-            config: {
-              model: process.env.LOCAL_LLM_MODEL || 'phi-4',
-              temperature: 0.7,
-              maxTokens: 15000,
-              baseUrl: process.env.LOCAL_LLM_BASE_URL,
-              execPath: process.env.LOCAL_LLM_EXEC_PATH
-            }
-          },
-          '2': {
             provider: 'openai',
             config: {
               apiKey: process.env.OPENAI_API_KEY,
               model: process.env.OPENAI_MODEL
             }
           },
-          '3': {
+          '2': {
             provider: 'anthropic',
             config: {
               apiKey: process.env.ANTHROPIC_API_KEY,

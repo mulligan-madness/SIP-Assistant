@@ -41,17 +41,37 @@ class OpenAIProvider extends BaseLLMProvider {
   }
 
   async chat(messages) {
+    console.log(`[OPENAI] Making chat request with ${messages.length} messages`);
+    
     // Convert system messages to user messages if needed
     const adaptedMessages = messages.map(msg => ({
       role: msg.role === 'system' ? 'user' : msg.role,
       content: msg.content
     }));
-
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages: adaptedMessages
-    });
-    return response.choices[0].message.content;
+    
+    console.log(`[OPENAI] Using model: ${this.model}`);
+    console.log(`[OPENAI] First few messages:`, JSON.stringify(adaptedMessages.slice(0, 2), null, 2));
+    
+    try {
+      console.log(`[OPENAI] Sending request to OpenAI API`);
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: adaptedMessages
+      });
+      
+      console.log(`[OPENAI] Received response from OpenAI API`);
+      console.log(`[OPENAI] Response:`, JSON.stringify({
+        id: response.id,
+        model: response.model,
+        usage: response.usage,
+        content: response.choices[0].message.content.substring(0, 100) + (response.choices[0].message.content.length > 100 ? '...' : '')
+      }, null, 2));
+      
+      return response.choices[0].message.content;
+    } catch (error) {
+      console.error(`[OPENAI] Error in chat request:`, error);
+      throw error;
+    }
   }
 }
 

@@ -10,13 +10,6 @@ class ConfigService {
         host: process.env.HOST || 'localhost'
       },
       providers: {
-        local: {
-          model: process.env.LOCAL_LLM_MODEL || 'phi-4',
-          temperature: parseFloat(process.env.LOCAL_LLM_TEMPERATURE) || 0.7,
-          maxTokens: parseInt(process.env.LOCAL_LLM_MAX_TOKENS) || 15000,
-          baseUrl: process.env.LOCAL_LLM_BASE_URL,
-          execPath: process.env.LOCAL_LLM_EXEC_PATH
-        },
         openai: {
           apiKey: process.env.OPENAI_API_KEY,
           model: process.env.OPENAI_MODEL || 'gpt-4o',
@@ -70,23 +63,16 @@ class ConfigService {
     }
     
     // Validate provider configurations
-    const providers = ['local', 'openai', 'anthropic'];
+    const providers = ['openai', 'anthropic'];
     let validProviders = 0;
     
     for (const provider of providers) {
       const providerConfig = this.config.providers[provider];
       let isValid = true;
       
-      if (provider === 'local') {
-        if (!providerConfig.baseUrl && !providerConfig.execPath) {
-          debug(`Local provider missing baseUrl or execPath`);
-          isValid = false;
-        }
-      } else {
-        if (!providerConfig.apiKey) {
-          debug(`${provider} provider missing API key`);
-          isValid = false;
-        }
+      if (!providerConfig.apiKey) {
+        debug(`${provider} provider missing API key`);
+        isValid = false;
       }
       
       if (isValid) {

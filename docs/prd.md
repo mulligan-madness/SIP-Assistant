@@ -58,6 +58,7 @@ The SIP-Assistant aims to revolutionize this process by automating and standardi
 - **Frontend (Vue.js):**  
   - **Current Role:** Provides the chat interface and basic UI for interacting with the system.
   - **Future Role:** A modular interface that supports multiple panels (chat, research, drafting, and feedback) with simple component communication through Vue's built-in reactivity system.
+    - The research panel will start as a simple, minimalist display of retrieval results with basic citation information and document expansion capabilities. This MVP approach will allow for quick validation of the core retrieval functionality before adding more complex features.
 
 - **Backend (Node.js):**  
   - **Current Role:** Hosts a basic chatbot and forum scraper.
@@ -197,15 +198,16 @@ Build for speed and learning, not premature scaling. The implementation will pri
 ### Phase 1: Foundation & First Agent
 - **Frontend:**  
   - Extract logical components from `ChatInterface.vue`
-  - Add a Research Results panel
-  - Implement basic UI for retrieval results
+  - Add a simple Research Results panel
+  - Implement minimalist UI for retrieval results with basic citation display
 - **Backend:**  
   - Extract logical modules from `chatbot.js`
   - Set up vector embeddings and storage
-  - Implement the Retrieval Agent capability
+  - Implement the Retrieval Agent capability with basic error handling and caching
 - **Testing:**  
   - Add tests for the critical retrieval functionality
   - Manual testing of UI components
+  - Include user validation methods for core functionality
 
 ### Phase 2: Research & Analysis
 - **Backend:**
@@ -247,7 +249,6 @@ While maintaining the existing structure, we'll organize new code in a logical w
 SIP-Assistant/
 ├── src/                  # All source code
 │   ├── components/       # Vue components (modular, focused)
-│   ├── providers/        # Enhanced provider system including agents
 │   │   ├── base.js       # Base provider definition
 │   │   ├── factory.js    # Factory pattern (extended)
 │   │   ├── agents/       # Agent-specific provider implementations

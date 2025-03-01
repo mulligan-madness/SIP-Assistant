@@ -146,7 +146,25 @@ export default {
             console.error('Error loading forum data, trying rescrape:', dataError)
             loadingMessage.value = 'Scraping forum data...'
             try {
-              await axios.post('/api/load-data', { rescrape: true })
+              const { data: rescrapeResult } = await axios.post('/api/load-data', { rescrape: true })
+              
+              // Check if reindexing was automatically performed
+              if (rescrapeResult.reindexed) {
+                console.log('Forum data rescraped and vector store automatically reindexed')
+                loadingMessage.value = 'Forum data rescraped and vector store reindexed'
+                
+                // If we have indexing stats, log them
+                if (rescrapeResult.indexStats) {
+                  console.log(`Reindexing stats: ${rescrapeResult.indexStats.indexed} indexed, ${rescrapeResult.indexStats.skipped} skipped`)
+                }
+                
+                // No need to set needsVectorReindex flag since it was already handled
+                status.needsVectorReindex = false
+              } else if (rescrapeResult.needsVectorReindex) {
+                // Reindexing was not performed or failed
+                console.log('Forum data rescraped successfully, vector reindexing will be triggered')
+                status.needsVectorReindex = true
+              }
             } catch (rescrapeError) {
               console.error('Error rescraping forum data:', rescrapeError)
               dataLoadSuccess = false
@@ -166,65 +184,75 @@ export default {
         
         // Initialize vector store with forum data if needed
         if (dataLoadSuccess) {
-          loadingMessage.value = 'Initializing vector search...'
+          loadingMessage.value = 'Checking vector search status...'
           let vectorInitialized = false;
           
           try {
-            // Check if vector store is already populated
-            const testSearch = await axios.post('/api/vector/search', { 
-              query: 'test query',
-              limit: 1
-            })
+            // Check if vector store is already initialized using the status endpoint
+            const { data: vectorStatus } = await axios.get('/api/vector/status')
             
-            if (testSearch.data.results && testSearch.data.results.length === 0) {
-              // Vector store is empty, index forum data
-              try {
-                console.log('Vector store is empty, attempting to index forum data...')
-                
-                // Show indexing indicator
-                indexingActive.value = true
-                indexingTitle.value = 'Preparing to Index Forum Data'
-                logIndexingOperation('Starting forum data indexing process')
-                
-                // Fetch total documents first
-                const { data: forumData } = await axios.post('/api/load-data', { rescrape: false })
-                if (forumData.count) {
-                  setTotalDocuments(forumData.count)
-                }
-                
-                // Set up SSE for real-time updates
-                eventSource = setupIndexingEvents()
-                
-                // Start the indexing process
-                const indexResult = await axios.post('/api/vector/index-forum-data')
-                
-                logIndexingOperation('Indexing completed: ' + indexResult.data.message)
-                vectorInitialized = true
-              } catch (indexError) {
-                console.error('Error indexing forum data:', indexError)
-                logIndexingOperation(`Error indexing forum data: ${indexError.message}`, 'error')
-                console.log('Continuing without forum data indexing')
+            // Check if we need to reindex due to a recent forum rescrape
+            // Note: If automatic reindexing was performed during the forum scrape,
+            // the needsVectorReindex flag should already be cleared
+            const needsReindexing = status.needsVectorReindex || vectorStatus.needsIndexing
+            
+            if (vectorStatus.initialized && vectorStatus.vectorCount > 0 && !needsReindexing) {
+              // Vector store is already initialized and has data
+              console.log('Vector store is already initialized with data')
+              vectorInitialized = true
+            } else if (needsReindexing) {
+              // Vector store needs indexing or reindexing
+              const action = status.needsVectorReindex ? 'reindexing' : 'indexing'
+              console.log(`Vector store needs ${action}, attempting to index forum data...`)
+              
+              // Show indexing indicator
+              indexingActive.value = true
+              indexingTitle.value = status.needsVectorReindex ? 
+                'Reindexing Forum Data After Scrape' : 
+                'Preparing to Index Forum Data'
+              logIndexingOperation(`Starting forum data ${action} process`)
+              
+              // Fetch total documents first
+              const { data: forumData } = await axios.post('/api/load-data', { rescrape: false })
+              if (forumData.count) {
+                setTotalDocuments(forumData.count)
               }
+              
+              // Set up SSE for real-time updates
+              eventSource = setupIndexingEvents()
+              
+              // Start the indexing process
+              const indexResult = await axios.post('/api/vector/index-forum-data')
+              
+              logIndexingOperation('Indexing completed: ' + indexResult.data.message)
+              vectorInitialized = true
             } else {
+              // Vector service is initialized but empty
+              console.log('Vector service is initialized but empty')
               vectorInitialized = true
             }
-          } catch (searchError) {
-            console.log('Vector store may need initialization, indexing forum data...')
+          } catch (statusError) {
+            console.error('Error checking vector store status:', statusError)
+            console.log('Falling back to manual vector initialization...')
+            
             try {
               // Show indexing indicator
               indexingActive.value = true
-              indexingTitle.value = 'Preparing to Index Forum Data'
-              logIndexingOperation('Starting forum data indexing process')
+              indexingTitle.value = status.needsVectorReindex ? 
+                'Reindexing Forum Data After Scrape' : 
+                'Preparing to Index Forum Data'
+              const action = status.needsVectorReindex ? 'reindexing' : 'indexing'
+              logIndexingOperation(`Starting forum data ${action} process`)
               
               // Set up SSE for real-time updates
               eventSource = setupIndexingEvents()
               
               await axios.post('/api/vector/index-forum-data')
-              console.log('Successfully indexed forum data')
+              console.log(`Successfully ${action} forum data`)
               vectorInitialized = true
             } catch (indexError) {
               console.error('Error indexing forum data:', indexError)
-              logIndexingOperation(`Error indexing forum data: ${indexError.message}`, 'error')
+              logIndexingOperation(`Error ${status.needsVectorReindex ? 'reindexing' : 'indexing'} forum data: ${indexError.message}`, 'error')
               console.log('Continuing without forum data indexing')
             }
           }

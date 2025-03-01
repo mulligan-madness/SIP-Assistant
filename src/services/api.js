@@ -187,7 +187,8 @@ class ApiService {
         llmInitialized: this.llmInitialized,
         dataLoaded: this.sipData.length > 0,
         contextCompressed: !!this.compressedContext,
-        existingContextAvailable
+        existingContextAvailable,
+        needsVectorReindex: req.app.locals.needsVectorReindex || false
       });
     });
 
@@ -205,7 +206,40 @@ class ApiService {
           console.log(`[API] Scrape completed, saving ${scrapedData.posts?.length || 0} posts`);
           await Storage.saveScrapeResult(scrapedData);
           this.sipData = scrapedData.posts;
-          res.json({ success: true, message: 'Data rescraped successfully', count: this.sipData.length });
+          
+          // Set a flag to indicate that vector reindexing is needed
+          req.app.locals.needsVectorReindex = true;
+          
+          // Automatically trigger vector reindexing
+          console.log('[API] Automatically triggering vector reindexing after forum scrape');
+          
+          try {
+            // Use the VectorService to reindex forum data directly
+            const result = await this.vectorService.reindexForumData(scrapedData.posts);
+            console.log(`[API] Vector reindexing completed: ${result.indexed} indexed, ${result.skipped} skipped`);
+            
+            // Clear the reindexing flag since we've handled it
+            req.app.locals.needsVectorReindex = false;
+            
+            res.json({ 
+              success: true, 
+              message: 'Data rescraped and vector store reindexed successfully', 
+              count: this.sipData.length,
+              reindexed: true,
+              indexStats: result
+            });
+          } catch (reindexError) {
+            console.error('[API] Error reindexing vector store:', reindexError);
+            
+            // Keep the flag set so the frontend knows reindexing is still needed
+            res.json({ 
+              success: true, 
+              message: 'Data rescraped successfully, but vector reindexing failed', 
+              count: this.sipData.length,
+              needsVectorReindex: true,
+              reindexError: reindexError.message
+            });
+          }
         } else {
           console.log('[API] Attempting to load data from storage');
           const latestData = await Storage.getLatestScrape();
@@ -261,30 +295,94 @@ class ApiService {
       }
     });
 
+    // New endpoint to check if vector store is initialized
+    this.app.get('/api/vector/status', async (req, res) => {
+      try {
+        const isInitialized = this.vectorService.initialized;
+        const vectorCount = this.vectorService.getVectorCount ? 
+          await this.vectorService.getVectorCount() : 
+          (vectorStore?.vectors?.length || 0);
+        
+        res.json({
+          success: true,
+          initialized: isInitialized,
+          vectorCount: vectorCount,
+          needsIndexing: vectorCount === 0
+        });
+      } catch (error) {
+        console.error('[API] Error checking vector store status:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Error checking vector store status',
+          error: error.message
+        });
+      }
+    });
+
     // New endpoint to search the vector store
     this.app.post('/api/vector/search', validateRetrievalInput, async (req, res) => {
       try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
+          console.log('[API] Vector search validation errors:', errors.array());
           return res.status(400).json({ errors: errors.array() });
         }
         
         const { query, limit = 5, threshold = 0.7 } = req.body;
+        console.log(`[API] Vector search request received: query="${query}", limit=${limit}, threshold=${threshold}`);
         
+        console.log('[API] Calling vector service search method...');
+        const startTime = Date.now();
         const results = await this.vectorService.search(query, {
           limit: parseInt(limit, 10),
           threshold: parseFloat(threshold)
         });
+        const duration = Date.now() - startTime;
+        console.log(`[API] Vector search completed in ${duration}ms, found ${results.length} results`);
         
         res.json({
           success: true,
           results
         });
+        console.log('[API] Vector search response sent successfully');
       } catch (error) {
-        console.error('Error searching vector store:', error);
+        console.error('[API] Error searching vector store:', error);
         res.status(500).json({
           success: false,
           message: 'Error searching vector store',
+          error: error.message
+        });
+      }
+    });
+
+    // New endpoint to get debug info about the vector store
+    this.app.get('/api/vector/debug', async (req, res) => {
+      try {
+        console.log('[API] Vector store debug request received');
+        
+        // Get internal vector store data for debugging
+        const vectorStore = this.vectorService.getDebugInfo ? 
+          await this.vectorService.getDebugInfo() : 
+          { message: 'Debug info not available' };
+        
+        // Return basic stats about the vector store
+        res.json({
+          success: true,
+          totalDocuments: vectorStore.vectors?.length || 0,
+          documentTypes: vectorStore.metadata ? 
+            [...new Set(vectorStore.metadata.map(m => m.type || 'unknown'))] : 
+            [],
+          sampleTitles: vectorStore.metadata ? 
+            vectorStore.metadata.slice(0, 5).map(m => m.title || 'Untitled') : 
+            []
+        });
+        
+        console.log('[API] Vector store debug response sent successfully');
+      } catch (error) {
+        console.error('[API] Error getting vector store debug info:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Error getting vector store debug info',
           error: error.message
         });
       }
@@ -380,11 +478,15 @@ class ApiService {
         // Track clients connected to SSE
         req.app.locals.sseClients = req.app.locals.sseClients || new Set()
         
+        // Check if this is a reindexing operation after a forum scrape
+        const isReindexing = req.app.locals.needsVectorReindex === true;
+        const actionType = isReindexing ? 'reindexing' : 'indexing';
+        
         // Set total posts count for progress tracking
         req.app.locals.indexingProgress = {
           total: posts.length,
           processed: 0,
-          status: 'Starting indexing process',
+          status: `Starting ${actionType} process`,
           startTime: Date.now()
         }
         
@@ -410,74 +512,145 @@ class ApiService {
         
         const VectorService = require('./vector')
         const vector = new VectorService()
-        await vector.clearForumData()
         
-        // Process posts in batches to avoid overwhelming the system
-        const batchSize = 5
-        let skippedCount = 0
+        let processed = 0;
+        let skippedCount = 0;
         
-        for (let i = 0; i < posts.length; i += batchSize) {
-          const batch = posts.slice(i, i + batchSize)
-          const batchStartMsg = `Processing batch ${Math.floor(i/batchSize) + 1} of ${Math.ceil(posts.length/batchSize)}`
-          
-          // Update progress for batch start
-          req.app.locals.indexingProgress.status = batchStartMsg
-          req.app.locals.indexingProgress.processed = i
-          
+        if (isReindexing) {
+          // Use the dedicated reindexing method for better performance and clarity
+          console.log(`[API] ${actionType} forum data after scrape`);
           sendProgress('progress', {
-            processed: i,
-            status: batchStartMsg,
-            log: batchStartMsg
-          })
+            processed: 0,
+            status: `Starting ${actionType} process`,
+            log: `Starting ${actionType} of ${posts.length} forum posts`
+          });
           
-          // Process each post in the batch
-          for (const post of batch) {
-            // Map the short field names to the expected names
-            const processedPost = {
-              title: post.title || post.t,
-              content: post.content || post.c,
-              url: post.url,
-              id: post.id,
-              date: post.date || post.d
-            };
+          // Process in batches with progress updates
+          const batchSize = 10;
+          
+          for (let i = 0; i < posts.length; i += batchSize) {
+            const batch = posts.slice(i, i + batchSize);
+            const batchStartMsg = `Processing batch ${Math.floor(i/batchSize) + 1} of ${Math.ceil(posts.length/batchSize)}`;
             
-            if (!processedPost.title || !processedPost.content || processedPost.content.trim() === '') {
-              skippedCount++
-              sendProgress('progress', {
-                processed: req.app.locals.indexingProgress.processed,
-                log: `Skipping post with empty or missing content: ${processedPost.title || 'Untitled'}`,
-                logType: 'warning'
-              })
-              continue
+            sendProgress('progress', {
+              processed: processed,
+              status: batchStartMsg,
+              log: batchStartMsg
+            });
+            
+            // Process batch
+            for (const post of batch) {
+              try {
+                // Map the short field names to the expected names
+                const processedPost = {
+                  title: post.title || post.t,
+                  content: post.content || post.c,
+                  url: post.url,
+                  id: post.id,
+                  date: post.date || post.d
+                };
+                
+                if (!processedPost.title || !processedPost.content || processedPost.content.trim() === '') {
+                  skippedCount++;
+                  continue;
+                }
+                
+                await vector.addForumPost(processedPost);
+                processed++;
+                
+                // Update progress periodically
+                if (processed % 3 === 0 || processed === posts.length) {
+                  sendProgress('progress', {
+                    processed: processed,
+                    status: `${actionType} ${processed} of ${posts.length}`,
+                    log: `Added post: ${processedPost.title}`
+                  });
+                }
+              } catch (err) {
+                console.error(`Error ${actionType} post:`, err);
+                skippedCount++;
+                sendProgress('progress', {
+                  log: `Error processing post: ${err.message}`,
+                  logType: 'error'
+                });
+              }
             }
             
-            try {
-              await vector.addForumPost(processedPost)
+            // Small delay between batches
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } else {
+          // Use the existing method for regular indexing
+          await vector.clearForumData()
+          
+          // Process posts in batches to avoid overwhelming the system
+          const batchSize = 5
+          
+          for (let i = 0; i < posts.length; i += batchSize) {
+            const batch = posts.slice(i, i + batchSize)
+            const batchStartMsg = `Processing batch ${Math.floor(i/batchSize) + 1} of ${Math.ceil(posts.length/batchSize)}`
+            
+            // Update progress for batch start
+            req.app.locals.indexingProgress.status = batchStartMsg
+            req.app.locals.indexingProgress.processed = i
+            
+            sendProgress('progress', {
+              processed: i,
+              status: batchStartMsg,
+              log: batchStartMsg
+            })
+            
+            // Process each post in the batch
+            for (const post of batch) {
+              // Map the short field names to the expected names
+              const processedPost = {
+                title: post.title || post.t,
+                content: post.content || post.c,
+                url: post.url,
+                id: post.id,
+                date: post.date || post.d
+              };
               
-              // Update progress
-              req.app.locals.indexingProgress.processed += 1
-              
-              // Send individual post progress every few posts to avoid overwhelming the client
-              if (req.app.locals.indexingProgress.processed % 3 === 0 || 
-                  req.app.locals.indexingProgress.processed === posts.length) {
+              if (!processedPost.title || !processedPost.content || processedPost.content.trim() === '') {
+                skippedCount++
                 sendProgress('progress', {
                   processed: req.app.locals.indexingProgress.processed,
-                  status: `Indexed ${req.app.locals.indexingProgress.processed} of ${posts.length}`,
-                  log: `Added post: ${processedPost.title} (${processedPost.url})`
+                  log: `Skipping post with empty or missing content: ${processedPost.title || 'Untitled'}`,
+                  logType: 'warning'
+                })
+                continue
+              }
+              
+              try {
+                await vector.addForumPost(processedPost)
+                
+                // Update progress
+                processed++;
+                req.app.locals.indexingProgress.processed += 1
+                
+                // Send individual post progress every few posts to avoid overwhelming the client
+                if (req.app.locals.indexingProgress.processed % 3 === 0 || 
+                    req.app.locals.indexingProgress.processed === posts.length) {
+                  sendProgress('progress', {
+                    processed: req.app.locals.indexingProgress.processed,
+                    status: `Indexed ${req.app.locals.indexingProgress.processed} of ${posts.length}`,
+                    log: `Added post: ${processedPost.title} (${processedPost.url})`
+                  })
+                }
+              } catch (err) {
+                console.error(`Error indexing post: ${processedPost.title}`, err)
+                skippedCount++;
+                sendProgress('progress', {
+                  processed: req.app.locals.indexingProgress.processed,
+                  log: `Error indexing post: ${processedPost.title} - ${err.message}`,
+                  logType: 'error'
                 })
               }
-            } catch (err) {
-              console.error(`Error indexing post: ${processedPost.title}`, err)
-              sendProgress('progress', {
-                processed: req.app.locals.indexingProgress.processed,
-                log: `Error indexing post: ${processedPost.title} - ${err.message}`,
-                logType: 'error'
-              })
             }
+            
+            // Small delay between batches to allow for UI updates
+            await new Promise(resolve => setTimeout(resolve, 100))
           }
-          
-          // Small delay between batches to allow for UI updates
-          await new Promise(resolve => setTimeout(resolve, 100))
         }
         
         // Send completion event
@@ -485,15 +658,22 @@ class ApiService {
         const duration = ((endTime - req.app.locals.indexingProgress.startTime) / 1000).toFixed(2)
         
         sendProgress('complete', {
-          processed: posts.length - skippedCount,
+          processed: processed,
           total: posts.length,
           skipped: skippedCount,
           status: 'Indexing complete',
-          log: `Indexed ${posts.length - skippedCount} posts in ${duration} seconds (${skippedCount} skipped)`
+          log: `${actionType} ${processed} posts in ${duration} seconds (${skippedCount} skipped)`
         })
         
-        console.log(`Indexed ${posts.length - skippedCount} forum posts (${skippedCount} skipped)`)
-        res.json({ success: true, message: `Indexed ${posts.length - skippedCount} forum posts (${skippedCount} skipped)` })
+        // Clear the reindexing flag
+        req.app.locals.needsVectorReindex = false;
+        
+        console.log(`${actionType} complete: ${processed} forum posts processed (${skippedCount} skipped)`)
+        res.json({ 
+          success: true, 
+          message: `${actionType} complete: ${processed} forum posts processed (${skippedCount} skipped)`,
+          wasReindexing: isReindexing
+        })
       } catch (error) {
         console.error('Error indexing forum data:', error)
         
@@ -654,10 +834,20 @@ class ApiService {
 
   async initializeVectorService() {
     try {
+      console.log('[API] Initializing vector service...');
       await this.vectorService.initialize();
-      console.log('Vector service initialized');
+      
+      // Log vector store status
+      const vectorCount = this.vectorService.getVectorCount();
+      console.log(`[API] Vector service initialized with ${vectorCount} vectors`);
+      
+      // If we have no vectors, we'll wait for the frontend to trigger indexing
+      // This allows the server to start quickly even if there's no vector data yet
+      if (vectorCount === 0) {
+        console.log('[API] Vector store is empty. Waiting for indexing request from frontend.');
+      }
     } catch (error) {
-      console.error('Failed to initialize vector service:', error);
+      console.error('[API] Failed to initialize vector service:', error);
     }
   }
 

@@ -65,21 +65,6 @@ class DiscourseScraper {
 
     console.log(`[Scraper] Starting scrape of forum at ${this.baseUrl}`);
 
-    try {
-      // First test the forum connection
-      const testResult = await this.test();
-      if (!testResult.success) {
-        const errorMsg = `Forum connection test failed: ${testResult.message}`;
-        debug(errorMsg);
-        throw new Error(errorMsg);
-      }
-      
-      console.log(`[Scraper] Connected to forum: ${testResult.title}`);
-    } catch (testError) {
-      console.error(`[Scraper] Failed to connect to forum: ${testError.message}`);
-      throw new Error(`Failed to connect to forum: ${testError.message}`);
-    }
-
     while (hasMore) {
       debug(`Fetching page ${page}`);
       try {
@@ -184,35 +169,6 @@ class DiscourseScraper {
       categoryId: 18,
       totalPages: page + 1
     };
-  }
-
-  async test() {
-    try {
-      debug('Running scraper test');
-      const testUrl = `${this.baseUrl}/site.json`;
-      const data = await this.fetchWithRetry(testUrl);
-      
-      if (!data.about?.title) {
-        return {
-          success: false,
-          message: 'Invalid forum response - missing title',
-          error: new Error('Invalid forum response structure')
-        };
-      }
-      
-      return {
-        success: true,
-        message: 'Successfully connected to forum',
-        title: data.about.title,
-        description: data.about.description
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: `Test failed: ${error.message}`,
-        error
-      };
-    }
   }
 
   async getCategories() {

@@ -44,16 +44,34 @@ class VectorService {
    * Initialize the vector service
    */
   async initialize() {
-    if (this.initialized) return;
+    // If already initialized, just return
+    if (this.initialized) {
+      console.log('[VectorService] Already initialized, skipping initialization');
+      return;
+    }
     
     try {
+      console.log('[VectorService] Initializing vector service...');
+      
+      // Load vectors from storage
       await this._loadVectors();
+      
+      // Set initialized flag
       this.initialized = true;
-      console.log('Vector service initialized');
+      
+      console.log(`[VectorService] Vector service initialized with ${vectorStore.vectors.length} vectors`);
     } catch (error) {
-      console.error('Failed to initialize vector service:', error);
+      console.error('[VectorService] Failed to initialize vector service:', error);
       throw error;
     }
+  }
+
+  /**
+   * Get the number of vectors in the store
+   * @returns {number} The number of vectors
+   */
+  getVectorCount() {
+    return vectorStore.vectors.length;
   }
 
   /**
@@ -63,14 +81,25 @@ class VectorService {
    */
   async generateEmbedding(text) {
     try {
+      console.log(`[VectorService] Generating embedding for text (length: ${text.length} chars)`);
+      console.log(`[VectorService] Using model: ${this.embeddingModel}`);
+      
+      const startTime = Date.now();
       const response = await openai.embeddings.create({
         model: this.embeddingModel,
         input: text
       });
+      const duration = Date.now() - startTime;
       
+      console.log(`[VectorService] Embedding generated successfully in ${duration}ms`);
       return response.data[0].embedding;
     } catch (error) {
-      console.error('Error generating embedding:', error);
+      console.error('[VectorService] Error generating embedding:', error);
+      console.error('[VectorService] Error details:', {
+        message: error.message,
+        status: error.status,
+        type: error.type
+      });
       throw error;
     }
   }
@@ -163,11 +192,18 @@ class VectorService {
     const limit = options.limit || 5;
     const threshold = options.threshold || 0.7;
     
+    console.log(`[VectorService] Starting search for query: "${query}" (limit: ${limit}, threshold: ${threshold})`);
+    console.log(`[VectorService] Vector store has ${vectorStore.vectors.length} documents`);
+    
     try {
+      console.log(`[VectorService] Generating embedding for query...`);
       const queryEmbedding = await this.generateEmbedding(query);
+      console.log(`[VectorService] Embedding generated successfully`);
+      
       const results = [];
       
       // Calculate similarity scores
+      console.log(`[VectorService] Calculating similarity scores for ${vectorStore.vectors.length} documents...`);
       for (let i = 0; i < vectorStore.vectors.length; i++) {
         const docVector = vectorStore.vectors[i];
         const docMetadata = vectorStore.metadata[i];
@@ -184,13 +220,18 @@ class VectorService {
         }
       }
       
+      console.log(`[VectorService] Found ${results.length} documents above threshold ${threshold}`);
+      
       // Sort by similarity score (descending)
       results.sort((a, b) => b.score - a.score);
       
       // Return top results
-      return results.slice(0, limit);
+      const topResults = results.slice(0, limit);
+      console.log(`[VectorService] Returning top ${topResults.length} results`);
+      
+      return topResults;
     } catch (error) {
-      console.error('Error searching vectors:', error);
+      console.error('[VectorService] Error searching vectors:', error);
       throw error;
     }
   }
@@ -239,15 +280,33 @@ class VectorService {
    */
   async _loadVectors() {
     try {
+      console.log('[VectorService] Loading vectors from storage...');
       const storage = new Storage();
       const storedVectors = await storage.getItem('vectorStore');
       
       if (storedVectors) {
         vectorStore = JSON.parse(storedVectors);
-        console.log(`Loaded ${vectorStore.vectors.length} vectors from storage`);
+        console.log(`[VectorService] Loaded ${vectorStore.vectors.length} vectors from storage`);
+        
+        // Log some basic stats about the vectors
+        if (vectorStore.vectors.length > 0) {
+          console.log(`[VectorService] First vector ID: ${vectorStore.vectors[0].id}`);
+          console.log(`[VectorService] Vector dimension: ${vectorStore.vectors[0].embedding.length}`);
+        }
+        
+        if (vectorStore.metadata.length > 0) {
+          const metadataSample = vectorStore.metadata[0];
+          console.log(`[VectorService] Sample metadata:`, {
+            id: metadataSample.id,
+            title: metadataSample.title || 'N/A',
+            type: metadataSample.type || 'N/A'
+          });
+        }
+      } else {
+        console.log('[VectorService] No vectors found in storage');
       }
     } catch (error) {
-      console.error('Error loading vectors:', error);
+      console.error('[VectorService] Error loading vectors:', error);
     }
   }
 
@@ -286,6 +345,101 @@ class VectorService {
     
     await this._saveVectors();
     console.log(`Cleared forum data from vector store. Removed ${oldCount - nonForumVectors.length} entries.`);
+  }
+
+  /**
+   * Reindex forum data after a scrape
+   * @param {Array} posts - Array of forum posts to index
+   * @returns {Promise<{indexed: number, skipped: number}>} - Indexing results
+   */
+  async reindexForumData(posts) {
+    console.log(`[VectorService] Reindexing ${posts.length} forum posts`);
+    
+    // First clear existing forum data
+    await this.clearForumData();
+    
+    // Then add all posts
+    let indexed = 0;
+    let skipped = 0;
+    
+    for (const post of posts) {
+      try {
+        // Map the short field names to the expected names
+        const processedPost = {
+          title: post.title || post.t,
+          content: post.content || post.c,
+          url: post.url,
+          id: post.id,
+          date: post.date || post.d
+        };
+        
+        if (!processedPost.title || !processedPost.content || processedPost.content.trim() === '') {
+          skipped++;
+          continue;
+        }
+        
+        await this.addForumPost(processedPost);
+        indexed++;
+      } catch (error) {
+        console.error(`[VectorService] Error indexing post:`, error);
+        skipped++;
+      }
+    }
+    
+    console.log(`[VectorService] Reindexing complete: ${indexed} indexed, ${skipped} skipped`);
+    return { indexed, skipped };
+  }
+
+  /**
+   * Get debug information about the vector store
+   * @returns {Object} Debug information about the vector store
+   */
+  async getDebugInfo() {
+    console.log('[VectorService] Getting debug info about vector store');
+    
+    try {
+      // Create a safe copy of vectors without the actual embeddings
+      const safeVectors = vectorStore.vectors.map(v => ({
+        id: v.id,
+        embeddingSize: v.embedding ? v.embedding.length : 0
+      }));
+      
+      // Get metadata
+      const metadata = vectorStore.metadata;
+      
+      // Calculate some stats
+      const stats = {
+        totalVectors: vectorStore.vectors.length,
+        totalMetadata: vectorStore.metadata.length,
+        documentTypes: {}
+      };
+      
+      // Count document types
+      for (const meta of vectorStore.metadata) {
+        const type = meta.type || 'unknown';
+        stats.documentTypes[type] = (stats.documentTypes[type] || 0) + 1;
+      }
+      
+      console.log('[VectorService] Debug info prepared:', {
+        vectorCount: stats.totalVectors,
+        metadataCount: stats.totalMetadata,
+        documentTypes: stats.documentTypes
+      });
+      
+      return {
+        vectors: safeVectors,
+        metadata: metadata,
+        stats: stats
+      };
+    } catch (error) {
+      console.error('[VectorService] Error getting debug info:', error);
+      return {
+        error: error.message,
+        vectors: [],
+        metadata: [],
+        stats: { totalVectors: 0, totalMetadata: 0, documentTypes: {} }
+      };
+    }
   }
 }
 

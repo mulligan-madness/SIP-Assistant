@@ -34,6 +34,14 @@
         <span v-if="isSearching">Searching...</span>
         <span v-else>Search</span>
       </button>
+      <button 
+        v-if="showDebug"
+        class="research-panel__debug-button"
+        @click="debugVectorStore"
+        title="Debug vector store"
+      >
+        Debug
+      </button>
     </div>
     
     <div class="research-panel__content">
@@ -64,6 +72,10 @@
         <p v-if="!searchAttempted" class="research-panel__tip">
           <strong>Tip:</strong> Try searching for topics like "voting", "treasury", or "proposals"
         </p>
+        <div v-else class="no-results">
+          <p>No results found for "{{ searchQuery }}"</p>
+          <p class="search-tip">Try using different keywords or more general terms. The search uses semantic matching with a threshold of {{ Math.round(searchThreshold * 100) }}% similarity.</p>
+        </div>
       </div>
       
       <!-- Error State -->
@@ -148,6 +160,8 @@ const searchCache = reactive({});
 const showHelp = ref(true);
 const retryCount = ref(0);
 const maxRetries = 3;
+const searchThreshold = ref(0.1);
+const showDebug = ref(process.env.NODE_ENV === 'development' || localStorage.getItem('enableDebug') === 'true');
 
 // Check if this is the first time using the panel
 onMounted(() => {
@@ -166,30 +180,38 @@ const performSearch = async (retry = false) => {
   
   if (retry) {
     retryCount.value++;
+    console.log(`[ResearchPanel] Retry attempt ${retryCount.value} of ${maxRetries}`);
   } else {
     retryCount.value = 0;
+    console.log(`[ResearchPanel] Starting new search`);
   }
   
   if (retryCount.value > maxRetries) {
     searchError.value = 'Maximum retry attempts reached. Please try again later.';
     isSearching.value = false;
+    console.log(`[ResearchPanel] Maximum retry attempts (${maxRetries}) reached`);
     return;
   }
   
   const query = searchQuery.value.trim();
+  console.log(`[ResearchPanel] Search query: "${query}"`);
   
   // Check cache first
   if (searchCache[query] && !retry) {
-    console.log('Using cached results for:', query);
+    console.log('[ResearchPanel] Using cached results for:', query);
     searchResults.value = searchCache[query];
     searchAttempted.value = true;
     return;
   }
   
   try {
+    console.log('[ResearchPanel] Setting search state...');
     isSearching.value = true;
     searchError.value = null;
     searchAttempted.value = true;
+    
+    console.log('[ResearchPanel] Sending API request to /api/vector/search...');
+    const startTime = Date.now();
     
     // Use the simpler vector search endpoint
     const response = await fetch('/api/vector/search', {
@@ -200,24 +222,29 @@ const performSearch = async (retry = false) => {
       body: JSON.stringify({
         query: query,
         limit: 5,
-        threshold: 0.7
+        threshold: searchThreshold.value
       }),
       // Add timeout to prevent hanging requests
       signal: AbortSignal.timeout(10000)
     }).catch(error => {
+      console.error('[ResearchPanel] Fetch error:', error);
       if (error.name === 'AbortError') {
         throw new Error('Search request timed out. Please try again.');
       }
       throw error;
     });
     
+    const duration = Date.now() - startTime;
+    console.log(`[ResearchPanel] API response received in ${duration}ms, status: ${response.status}`);
+    
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error('[ResearchPanel] API error response:', errorData);
       
       // Handle rate limiting or server errors with exponential backoff
       if (response.status === 429 || response.status >= 500) {
         const retryDelay = Math.min(1000 * Math.pow(2, retryCount.value), 10000);
-        console.log(`Rate limited or server error. Retrying in ${retryDelay}ms...`);
+        console.log(`[ResearchPanel] Rate limited or server error. Retrying in ${retryDelay}ms...`);
         
         setTimeout(() => {
           performSearch(true);
@@ -229,24 +256,35 @@ const performSearch = async (retry = false) => {
       throw new Error(errorData.message || `Failed to search documents (${response.status})`);
     }
     
+    console.log('[ResearchPanel] Parsing JSON response...');
     const data = await response.json().catch(() => {
+      console.error('[ResearchPanel] Failed to parse JSON response');
       throw new Error('Failed to parse search results');
     });
     
+    console.log(`[ResearchPanel] Response data:`, data);
+    
     if (!data.results) {
+      console.error('[ResearchPanel] Invalid response format - missing results array');
       throw new Error('Invalid response format from server');
     }
     
+    console.log(`[ResearchPanel] Search successful, found ${data.results.length} results`);
     searchResults.value = data.results;
+    
+    // Log the state after setting search results
+    console.log(`[ResearchPanel] State after search: isSearching=${isSearching.value}, searchAttempted=${searchAttempted.value}, resultsLength=${searchResults.value ? searchResults.value.length : 0}`);
     
     // Cache the results
     if (data.results && data.results.length > 0) {
       searchCache[query] = data.results;
+      console.log(`[ResearchPanel] Results cached for query: "${query}"`);
       
       // Limit cache size to prevent memory issues
       const cacheKeys = Object.keys(searchCache);
       if (cacheKeys.length > 10) {
         delete searchCache[cacheKeys[0]];
+        console.log(`[ResearchPanel] Cache pruned, removed oldest entry`);
       }
     }
     
@@ -259,12 +297,12 @@ const performSearch = async (retry = false) => {
     localStorage.setItem('hasUsedResearch', 'true');
     showHelp.value = false;
   } catch (error) {
-    console.error('Search error:', error);
+    console.error('[ResearchPanel] Search error:', error);
     
     // If it's a network error, try to retry
     if (error.message.includes('network') || error.message.includes('timeout')) {
       const retryDelay = Math.min(1000 * Math.pow(2, retryCount.value), 10000);
-      console.log(`Network error. Retrying in ${retryDelay}ms...`);
+      console.log(`[ResearchPanel] Network error. Retrying in ${retryDelay}ms...`);
       
       setTimeout(() => {
         performSearch(true);
@@ -276,9 +314,10 @@ const performSearch = async (retry = false) => {
     searchError.value = error.message || 'An error occurred while searching';
     searchResults.value = null;
   } finally {
-    if (retryCount.value === 0 || retryCount.value > maxRetries) {
-      isSearching.value = false;
-    }
+    // Always set isSearching to false when the search completes
+    isSearching.value = false;
+    console.log(`[ResearchPanel] Search completed, isSearching set to false`);
+    console.log(`[ResearchPanel] Final state: isSearching=${isSearching.value}, searchAttempted=${searchAttempted.value}, resultsLength=${searchResults.value ? searchResults.value.length : 0}, hasError=${!!searchError.value}`);
   }
 };
 
@@ -338,6 +377,40 @@ const formatMarkdown = (text) => {
     return DOMPurify.sanitize(String(text));
   }
 };
+
+// Debug function to check vector store status
+const debugVectorStore = async () => {
+  try {
+    console.log('[ResearchPanel] Fetching vector store debug info...');
+    
+    // Create a simple endpoint call to get vector store info
+    const response = await fetch('/api/vector/debug', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      console.error('[ResearchPanel] Failed to get debug info:', response.status);
+      alert('Debug endpoint not available. Check console for more info.');
+      return;
+    }
+    
+    const data = await response.json();
+    console.log('[ResearchPanel] Vector store debug info:', data);
+    
+    // Display basic info in an alert for now
+    alert(`Vector Store Info:
+- Total documents: ${data.totalDocuments || 'N/A'}
+- Document types: ${data.documentTypes ? JSON.stringify(data.documentTypes) : 'N/A'}
+- Sample document titles: ${data.sampleTitles ? data.sampleTitles.join(', ') : 'N/A'}`);
+    
+  } catch (error) {
+    console.error('[ResearchPanel] Debug error:', error);
+    alert('Error fetching debug info: ' + error.message);
+  }
+};
 </script>
 
 <style scoped>
@@ -348,14 +421,14 @@ const formatMarkdown = (text) => {
   width: 450px;
   max-width: calc(100vw - 40px);
   max-height: calc(100vh - 40px);
-  background: var(--surface-color, #ffffff);
+  background: var(--surface-color, #1e1e1e);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   z-index: 900;
-  color: var(--text-color, #333333);
+  color: var(--text-color, #e0e0e0);
 }
 
 .research-panel__header {
@@ -363,7 +436,7 @@ const formatMarkdown = (text) => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  border-bottom: 1px solid var(--border-color, #333);
 }
 
 .research-panel__title {
@@ -377,42 +450,68 @@ const formatMarkdown = (text) => {
   border: none;
   cursor: pointer;
   padding: 4px;
-  color: var(--text-secondary, #666666);
+  color: var(--text-secondary, #aaa);
   border-radius: 4px;
 }
 
 .research-panel__close-button:hover {
-  background: var(--hover-color, #f0f0f0);
+  background: var(--hover-color, #3c3c3e);
 }
 
 .research-panel__search {
   padding: 12px 16px;
   display: flex;
   gap: 8px;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  border-bottom: 1px solid var(--border-color, #333);
 }
 
 .research-panel__search-input {
   flex: 1;
   padding: 8px 12px;
-  border: 1px solid var(--border-color, #e0e0e0);
+  border: 1px solid var(--border-color, #333);
   border-radius: 4px;
   font-size: 14px;
+  background: var(--input-background, #2c2c2e);
+  color: var(--text-color, #e0e0e0);
+}
+
+.research-panel__search-input::placeholder {
+  color: var(--text-secondary, #aaa);
 }
 
 .research-panel__search-button {
   padding: 8px 16px;
-  background: var(--primary-color, #4a6cf7);
-  color: white;
+  background: var(--button-primary, #7c5ddf);
+  color: var(--button-text-primary, #ffffff);
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-weight: 500;
+  transition: background-color 0.2s ease;
+}
+
+.research-panel__search-button:hover:not(:disabled) {
+  background: var(--button-primary-hover, #9579f0);
 }
 
 .research-panel__search-button:disabled {
-  background: var(--disabled-color, #cccccc);
+  background: var(--button-disabled, #404040);
+  color: var(--disabled-text, #666);
   cursor: not-allowed;
+}
+
+.research-panel__debug-button {
+  padding: 8px 12px;
+  background: var(--button-secondary, #2c2c2e);
+  color: var(--text-color, #e0e0e0);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.research-panel__debug-button:hover {
+  background: var(--button-secondary-hover, #3c3c3e);
 }
 
 .research-panel__content {
@@ -433,8 +532,8 @@ const formatMarkdown = (text) => {
 .spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--border-color, #e0e0e0);
-  border-top-color: var(--primary-color, #4a6cf7);
+  border: 3px solid var(--border-color, #333);
+  border-top-color: var(--primary-color, #bb86fc);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -447,30 +546,35 @@ const formatMarkdown = (text) => {
 .research-panel__error {
   text-align: center;
   padding: 32px 16px;
-  color: var(--text-secondary, #666666);
+  color: var(--text-secondary, #aaa);
 }
 
 .research-panel__error-button {
   margin-top: 16px;
   padding: 8px 16px;
-  background: var(--primary-color, #4a6cf7);
-  color: white;
+  background: var(--button-primary, #7c5ddf);
+  color: var(--button-text-primary, #ffffff);
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.research-panel__error-button:hover {
+  background: var(--button-primary-hover, #9579f0);
 }
 
 .document-card {
-  background: var(--card-bg, #f9f9f9);
+  background: var(--surface-color-secondary, #2c2c2e);
   border-radius: 6px;
   margin-bottom: 16px;
   overflow: hidden;
-  border: 1px solid var(--border-color, #e0e0e0);
+  border: 1px solid var(--border-color, #333);
 }
 
 .document-card__header {
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  border-bottom: 1px solid var(--border-color, #333);
 }
 
 .document-card__title {
@@ -483,12 +587,12 @@ const formatMarkdown = (text) => {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  color: var(--text-secondary, #666666);
+  color: var(--text-secondary, #aaa);
 }
 
 .document-card__content {
   padding: 16px;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  border-bottom: 1px solid var(--border-color, #333);
 }
 
 .document-card__text {
@@ -497,7 +601,7 @@ const formatMarkdown = (text) => {
 }
 
 .document-card__citation {
-  background: var(--citation-bg, #f0f0f0);
+  background: var(--background-color, #121212);
   padding: 12px;
   border-radius: 4px;
   font-size: 13px;
@@ -514,11 +618,16 @@ const formatMarkdown = (text) => {
 
 .document-card__copy-button {
   padding: 4px 8px;
-  background: var(--secondary-color, #e0e0e0);
-  border: none;
+  background: var(--button-secondary, #2c2c2e);
+  border: 1px solid var(--border-color, #333);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
+  color: var(--text-color, #e0e0e0);
+}
+
+.document-card__copy-button:hover {
+  background: var(--button-secondary-hover, #3c3c3e);
 }
 
 .document-card__actions {
@@ -530,15 +639,17 @@ const formatMarkdown = (text) => {
 
 .document-card__button {
   padding: 6px 12px;
-  background: var(--button-bg, #f0f0f0);
-  border: 1px solid var(--border-color, #e0e0e0);
+  background: var(--button-secondary, #2c2c2e);
+  border: 1px solid var(--border-color, #333);
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
+  color: var(--text-color, #e0e0e0);
+  transition: background-color 0.2s ease;
 }
 
 .document-card__button:hover {
-  background: var(--button-hover, #e0e0e0);
+  background: var(--button-secondary-hover, #3c3c3e);
 }
 
 @media (max-width: 768px) {
@@ -554,17 +665,17 @@ const formatMarkdown = (text) => {
 }
 
 .research-panel__help {
-  background: var(--help-bg, #f0f7ff);
+  background: var(--surface-color-secondary, #2c2c2e);
   border-radius: 6px;
   padding: 16px;
   margin-bottom: 16px;
-  border: 1px solid var(--help-border, #d0e3ff);
+  border: 1px solid var(--border-color, #333);
 }
 
 .research-panel__help h3 {
   margin: 0 0 12px 0;
   font-size: 16px;
-  color: var(--help-title, #2c5282);
+  color: var(--primary-color, #bb86fc);
 }
 
 .research-panel__help p {
@@ -590,17 +701,34 @@ const formatMarkdown = (text) => {
 
 .research-panel__help-button {
   padding: 6px 12px;
-  background: var(--primary-color, #4a6cf7);
-  color: white;
+  background: var(--button-primary, #7c5ddf);
+  color: var(--button-text-primary, #ffffff);
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
+  transition: background-color 0.2s ease;
+}
+
+.research-panel__help-button:hover {
+  background: var(--button-primary-hover, #9579f0);
 }
 
 .research-panel__tip {
   font-size: 13px;
-  color: var(--text-secondary, #666666);
+  color: var(--text-secondary, #aaa);
+  margin-top: 12px;
+}
+
+.no-results {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--text-secondary, #aaa);
+}
+
+.search-tip {
+  font-size: 13px;
+  color: var(--text-secondary, #aaa);
   margin-top: 12px;
 }
 </style>

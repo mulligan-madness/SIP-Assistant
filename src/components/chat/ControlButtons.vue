@@ -13,13 +13,14 @@
       Ask for Markdown
     </button>
     <button class="action-button" :class="{ 'active': isResearchActive }" @click="toggleResearch">
-      Toggle Research Panel
+      <span v-if="isResearchActive">Hide Research Panel</span>
+      <span v-else>Show Research Panel</span>
     </button>
   </div>
 </template>
 
 <script setup>
-import { defineEmits, defineProps, ref } from 'vue';
+import { defineEmits, defineProps } from 'vue';
 
 // Define props
 const props = defineProps({
@@ -72,8 +73,9 @@ const toggleResearch = () => {
   box-shadow: 0 2px 4px var(--button-shadow);
 }
 
-.research-button {
-  background: var(--button-primary-light);
+.action-button.active {
+  background: var(--button-primary);
+  color: var(--button-text-primary);
 }
 
 /* Responsive design */

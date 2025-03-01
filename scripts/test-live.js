@@ -1,13 +1,12 @@
-const { DiscourseScraper } = require('../src/scraper');
-const { Storage } = require('../src/storage');
+const { DiscourseScraper } = require('../src/services/scraper');
+const { storage } = require('../src/services/storage');
 const debug = require('debug')('forum-scraper:test-live');
 
 async function testLiveForum() {
   try {
     debug('Starting live forum test');
     
-    // Initialize storage and scraper
-    const storage = new Storage();
+    // Initialize scraper
     const scraper = new DiscourseScraper('https://forum.rare.xyz', {
       debug: true,
       rateLimit: 2000, // 2 seconds between requests

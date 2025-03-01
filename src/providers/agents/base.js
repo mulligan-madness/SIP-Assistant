@@ -1,22 +1,28 @@
 const { BaseLLMProvider } = require('../base');
 
 /**
- * Base class for all agent providers
- * Extends the BaseLLMProvider with agent-specific functionality
+ * Base Agent Provider
+ * Abstract base class for all agent providers
  */
-class BaseAgentProvider extends BaseLLMProvider {
+
+/**
+ * Base class for all agent providers
+ */
+class BaseAgentProvider {
   /**
    * Create a new agent provider
-   * @param {BaseLLMProvider} llmProvider - The underlying LLM provider to use
+   * @param {Object} llmProvider - The underlying LLM provider
    * @param {Object} config - Configuration for the agent
    */
   constructor(llmProvider, config = {}) {
-    super();
+    if (!llmProvider) {
+      throw new Error('LLM provider is required');
+    }
+    
     this.llmProvider = llmProvider;
     this.config = config;
-    
-    // Default system prompt that can be overridden by specific agents
-    this.systemPrompt = config.systemPrompt || 'You are a helpful assistant.';
+    this.systemPrompt = config.systemPrompt || 'You are a helpful AI assistant.';
+    this.debug = config.debug || false;
     
     // Default temperature for agent operations
     this.temperature = config.temperature !== undefined ? config.temperature : 0.7;
@@ -26,29 +32,59 @@ class BaseAgentProvider extends BaseLLMProvider {
   }
 
   /**
+   * Log an operation if debug is enabled
+   * @param {string} operation - The operation name
+   * @param {Object} data - The operation data
+   * @private
+   */
+  _logOperation(operation, data = {}) {
+    if (this.debug) {
+      console.log(`[AGENT] ${operation}:`, JSON.stringify(data, null, 2));
+    }
+  }
+
+  /**
+   * Check if this provider supports a specific capability
+   * @param {string} capability - The capability to check
+   * @returns {boolean} - Whether the capability is supported
+   */
+  supportsCapability(capability) {
+    return false; // Base implementation doesn't support any capabilities
+  }
+
+  /**
+   * Get the system prompt for this agent
+   * @returns {string} - The system prompt
+   */
+  getSystemPrompt() {
+    return this.systemPrompt;
+  }
+
+  /**
+   * Set the system prompt for this agent
+   * @param {string} prompt - The new system prompt
+   */
+  setSystemPrompt(prompt) {
+    this.systemPrompt = prompt;
+  }
+
+  /**
+   * Forward a chat request to the underlying LLM provider
+   * @param {Array} messages - The chat messages
+   * @param {Object} options - Additional options for the chat
+   * @returns {Promise<string>} - The chat response
+   */
+  async chat(messages, options = {}) {
+    return this.llmProvider.chat(messages, options);
+  }
+
+  /**
    * Delegate the complete method to the underlying LLM provider
    * @param {string} prompt - The prompt to complete
    * @returns {Promise<string>} - The completion
    */
   async complete(prompt) {
     return this.llmProvider.complete(prompt);
-  }
-
-  /**
-   * Delegate the chat method to the underlying LLM provider
-   * @param {Array} messages - The messages to process
-   * @returns {Promise<string>} - The response
-   */
-  async chat(messages) {
-    // Add the system prompt if not already present
-    if (!messages.some(m => m.role === 'system')) {
-      messages = [
-        { role: 'system', content: this.systemPrompt },
-        ...messages
-      ];
-    }
-    
-    return this.llmProvider.chat(messages);
   }
 
   /**
@@ -100,30 +136,6 @@ class BaseAgentProvider extends BaseLLMProvider {
         // Return the raw text
         return response;
     }
-  }
-
-  /**
-   * Check if this provider supports a specific capability
-   * @param {string} capability - The capability to check
-   * @returns {boolean} - Whether the capability is supported
-   */
-  supportsCapability(capability) {
-    // To be overridden by specific agent providers
-    return false;
-  }
-
-  /**
-   * Log an operation for history tracking
-   * @param {string} operation - The operation name
-   * @param {Object} details - Operation details
-   * @private
-   */
-  _logOperation(operation, details = {}) {
-    this.operationHistory.push({
-      timestamp: new Date(),
-      operation,
-      details
-    });
   }
 
   /**

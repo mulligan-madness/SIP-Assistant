@@ -3,16 +3,16 @@ const readline = require('readline');
 const fs = require('fs');
 const path = require('path');
 const debug = require('debug')('chatbot:chat');
-const { Storage } = require('./storage');
+const { LLMProviderFactory } = require('../providers/factory');
+const { storage } = require('./storage');
 
 class ChatService {
   constructor() {
     this.chatHistory = {};
-    this.storage = new Storage();
   }
 
   // Process a chat message and generate a response
-  async processMessage(message, sessionId, compressedContext, sipData) {
+  async processMessage(message, sessionId, compressedContext, sipData, messageHistory = null) {
     try {
       debug(`Processing message for session ${sessionId}`);
       console.log(`[CHAT] Processing message for session ${sessionId}: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`);
@@ -23,12 +23,39 @@ class ChatService {
         console.log(`[CHAT] Initialized new chat history for session ${sessionId}`);
       }
       
-      // Add user message to history
-      this.chatHistory[sessionId].push({
-        role: 'user',
-        content: message
-      });
-      console.log(`[CHAT] Added user message to history. History length: ${this.chatHistory[sessionId].length}`);
+      // If message history is provided from the frontend, use it to sync the server-side history
+      if (messageHistory && Array.isArray(messageHistory)) {
+        console.log(`[CHAT] Received message history from frontend with ${messageHistory.length} messages`);
+        
+        // Only update the chat history if the incoming history is longer
+        // This prevents losing context if multiple clients are active
+        if (messageHistory.length > this.chatHistory[sessionId].length) {
+          console.log(`[CHAT] Using frontend message history (${messageHistory.length} messages) instead of server history (${this.chatHistory[sessionId].length} messages)`);
+          this.chatHistory[sessionId] = messageHistory;
+        } else {
+          console.log(`[CHAT] Keeping server message history (${this.chatHistory[sessionId].length} messages) as it's longer than frontend history (${messageHistory.length} messages)`);
+          
+          // Add the latest user message if it's not already in the history
+          const latestUserMessage = messageHistory[messageHistory.length - 1];
+          if (latestUserMessage && latestUserMessage.role === 'user') {
+            const existingMessage = this.chatHistory[sessionId].find(
+              m => m.role === 'user' && m.content === latestUserMessage.content
+            );
+            
+            if (!existingMessage) {
+              this.chatHistory[sessionId].push(latestUserMessage);
+              console.log(`[CHAT] Added latest user message to existing server history`);
+            }
+          }
+        }
+      } else {
+        // If no message history is provided, add the user message to the existing history
+        this.chatHistory[sessionId].push({
+          role: 'user',
+          content: message
+        });
+        console.log(`[CHAT] Added user message to history. History length: ${this.chatHistory[sessionId].length}`);
+      }
       
       // Prepare the messages array for the LLM
       const messages = this.prepareMessagesForLLM(sessionId, compressedContext, sipData);
@@ -49,13 +76,9 @@ class ChatService {
       // Trim history if it gets too long
       this.trimChatHistory(sessionId);
       
-      return {
-        response: llmResponse,
-        history: this.chatHistory[sessionId]
-      };
+      return llmResponse;
     } catch (error) {
-      console.error(`[CHAT] Error processing message:`, error);
-      debug(`Error processing message: ${error.message}`);
+      console.error('[CHAT] Error processing message:', error);
       throw error;
     }
   }
@@ -210,7 +233,7 @@ Create a compressed context (max 2000 words) that the AI can use to understand S
           debug('Successfully compressed SIP context');
           
           // Save the compressed context
-          await this.storage.saveCompressedContext(compressedContext);
+          await storage.saveCompressedContext(compressedContext);
           
           return compressedContext;
         } else {

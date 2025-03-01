@@ -121,40 +121,7 @@ export default {
   margin: 0 0 15px 0;
 }
 
-.button-group {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.action-button {
-  flex: 1;
-  min-width: 150px;
-  height: 44px;
-  background: var(--button-secondary);
-  color: var(--button-text-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 2px var(--button-shadow);
-}
-
-.action-button:hover:not(:disabled) {
-  background: var(--button-primary);
-  color: var(--button-text-primary);
-  transform: translateY(-1px);
-  box-shadow: 0 3px 6px var(--button-shadow);
-}
-
-.action-button:disabled {
-  background: var(--button-disabled);
-  color: var(--button-text-secondary);
-  cursor: not-allowed;
-  box-shadow: none;
-}
+/* Button styles moved to global CSS */
 
 .settings-modal__status {
   margin-top: 20px;

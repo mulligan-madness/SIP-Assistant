@@ -9,7 +9,7 @@
       rows="1"
     ></textarea>
     <button 
-      class="send-button"
+      class="action-button"
       @click="sendMessage" 
       :disabled="isLoading || !inputMessage.trim()"
     >
@@ -85,28 +85,9 @@ onMounted(() => {
   color: var(--text-color);
 }
 
-.send-button {
+/* Send button styles moved to global CSS */
+.action-button {
   height: 44px;
   min-width: 100px;
-  background: var(--button-primary);
-  color: var(--button-text-primary);
-  border: none;
-  border-radius: 6px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 4px var(--button-shadow);
-}
-
-.send-button:hover:not(:disabled) {
-  background: var(--button-primary-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 3px 6px var(--button-shadow);
-}
-
-.send-button:disabled {
-  background: var(--button-disabled);
-  color: var(--button-text-secondary);
-  box-shadow: none;
-  cursor: not-allowed;
 }
 </style>

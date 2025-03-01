@@ -60,5 +60,5 @@ export default {
 </script>
 
 <style scoped>
-/* The styles will be inherited from the parent SettingsModal component */
+/* Styles moved to global CSS */
 </style>

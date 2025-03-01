@@ -1,28 +1,41 @@
 <template>
   <div class="controls">
-    <button class="control-button" @click="$emit('export')">
+    <button class="action-button" @click="$emit('export')">
       Export Chat History
     </button>
-    <button class="control-button" @click="$emit('enforce')">
+    <button class="action-button" @click="$emit('enforce')">
       Enforce Section Headers
     </button>
-    <button class="control-button" @click="$emit('pretty')">
+    <button class="action-button" @click="$emit('pretty')">
       Ask for Pretty Text
     </button>
-    <button class="control-button" @click="$emit('markdown')">
+    <button class="action-button" @click="$emit('markdown')">
       Ask for Markdown
     </button>
-    <button class="control-button research-button" @click="$emit('research')">
+    <button class="action-button" :class="{ 'active': isResearchActive }" @click="toggleResearch">
       Toggle Research Panel
     </button>
   </div>
 </template>
 
 <script setup>
-import { defineEmits } from 'vue';
+import { defineEmits, defineProps, ref } from 'vue';
+
+// Define props
+const props = defineProps({
+  isResearchActive: {
+    type: Boolean,
+    default: false
+  }
+});
 
 // Define emits
-defineEmits(['export', 'enforce', 'pretty', 'markdown', 'research']);
+const emit = defineEmits(['export', 'enforce', 'pretty', 'markdown', 'research']);
+
+// Toggle research panel
+const toggleResearch = () => {
+  emit('research');
+};
 </script>
 
 <style scoped>
@@ -36,7 +49,7 @@ defineEmits(['export', 'enforce', 'pretty', 'markdown', 'research']);
   border-top: 1px solid var(--border-color);
 }
 
-.control-button {
+.action-button {
   flex: 1;
   min-width: 180px;
   height: 44px;
@@ -52,7 +65,7 @@ defineEmits(['export', 'enforce', 'pretty', 'markdown', 'research']);
   box-shadow: 0 1px 2px var(--button-shadow);
 }
 
-.control-button:hover {
+.action-button:hover {
   background: var(--button-primary);
   color: var(--button-text-primary);
   transform: translateY(-1px);
@@ -69,7 +82,7 @@ defineEmits(['export', 'enforce', 'pretty', 'markdown', 'research']);
     flex-wrap: nowrap;
   }
   
-  .control-button {
+  .action-button {
     min-width: 140px;
   }
 }

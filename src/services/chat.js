@@ -31,7 +31,7 @@ class ChatService {
       const messages = this.prepareMessagesForLLM(sessionId, compressedContext, sipData);
       
       // Get response from LLM
-      const llmResponse = await global.llmProvider.generateChatCompletion(messages);
+      const llmResponse = await global.llmProvider.chat(messages);
       
       // Add assistant response to history
       this.chatHistory[sessionId].push({
@@ -196,7 +196,7 @@ Create a compressed context (max 2000 words) that the AI can use to understand S
           { role: 'user', content: prompt }
         ];
         
-        const compressedContext = await global.llmProvider.generateChatCompletion(messages);
+        const compressedContext = await global.llmProvider.chat(messages);
         
         if (compressedContext && compressedContext.length > 200) {
           debug('Successfully compressed SIP context');

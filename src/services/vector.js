@@ -7,9 +7,18 @@ const { OpenAI } = require('openai');
 const Storage = require('./storage');
 
 // Initialize OpenAI client for embeddings
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const openai = process.env.NODE_ENV === 'test' ? 
+  {
+    // Mock OpenAI client for testing
+    embeddings: {
+      create: async () => ({
+        data: [{ embedding: Array(1536).fill(0.1) }]
+      })
+    }
+  } : 
+  new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY
+  });
 
 // In-memory vector store for development
 // In production, this would be replaced with a proper vector database like Pinecone or Weaviate

@@ -584,6 +584,7 @@ This minimal approach validates the core value proposition while deferring more 
 
 **Branch Name:** `feature/research-agent`
 
+<<<<<<< Updated upstream
 ### Task 1: Design Research Processing Pipeline
 - **Description:** Define the workflow for analyzing retrieved documents
 - **Steps:**
@@ -618,6 +619,130 @@ This minimal approach validates the core value proposition while deferring more 
   - Agent processes documents correctly
   - Output is well-structured
   - Recommendations are meaningful
+=======
+### Task 1: Design Simplified Interview Process
+- **Description:** Define a streamlined approach for conducting user interviews
+- **Steps:**
+  1. Create a focused system prompt for Socratic questioning
+  2. Define minimal state tracking requirements
+  3. Design simple integration with the Retrieval Agent
+  4. Document the approach with examples
+- **Testing Criteria:** Design document clearly outlines the simplified interview process
+- **Commit Point:** After completing the design and documentation
+
+### Task 2: Implement Enhanced Prompting
+- **Description:** Create specialized prompts for effective interviewing
+- **Steps:**
+  1. Develop a core Socratic questioning prompt
+  2. Create prompts for different proposal types
+  3. Add prompts for incorporating retrieved documents
+  4. Implement prompt templates with variable substitution
+- **Testing Criteria:**
+  - Prompts effectively guide the LLM to ask insightful questions
+  - Different proposal types have appropriate specialized prompts
+  - Document references are naturally incorporated
+- **Commit Point:** After prompts are implemented and tested
+
+### Task 3: Implement Minimal State Tracking
+- **Description:** Create a lightweight system for tracking interview progress
+- **Steps:**
+  1. Implement tracking for key insights extracted
+  2. Add a simple system for flagging topics that need exploration
+  3. Create a mechanism to identify contradictions or uncertainties
+  4. Keep the implementation focused on essential state only
+- **Testing Criteria:**
+  - System tracks important insights without complex state management
+  - Topics needing further exploration are properly identified
+  - Contradictions are flagged for follow-up
+- **Commit Point:** After state tracking is implemented and tested
+
+### Task 4: Update Interview Agent Provider
+- **Description:** Implement the Interview Agent provider with the simplified approach
+- **Steps:**
+  1. Update `src/providers/agents/interview.js`
+  2. Implement the `interview` method using enhanced prompting
+  3. Add methods for including relevant documents in context
+  4. Create utility functions for prompt enhancement
+- **Testing Criteria:**
+  - Agent conducts natural conversations
+  - Questions adapt based on user responses
+  - Document context is properly incorporated
+- **Commit Point:** After the provider is implemented and tested
+
+### Task 5: Create Simple Integration with Retrieval Agent
+- **Description:** Implement a straightforward integration between Interview and Retrieval agents
+- **Steps:**
+  1. Create a method to include retrieved documents in the interview context
+  2. Implement a simple mechanism for the interview agent to request relevant documents
+  3. Add formatting for document references in conversation
+  4. Keep the integration lightweight and focused
+- **Testing Criteria:**
+  - Interview agent can access relevant documents
+  - Documents are properly referenced in conversation
+  - Integration is simple and maintainable
+- **Commit Point:** After integration is complete and tested
+
+### Task 6: Add Basic UI Enhancements
+- **Description:** Make minimal UI changes to support the interview process
+- **Steps:**
+  1. Add a simple indicator for interview mode
+  2. Create a basic display for referenced documents
+  3. Implement a minimal progress indicator
+  4. Use existing UI components where possible
+- **Testing Criteria:**
+  - UI clearly indicates when in interview mode
+  - Referenced documents are easily accessible
+  - Progress is visible to the user
+- **Commit Point:** After UI enhancements are implemented and tested
+
+### Definition of Done
+- Interview Agent is implemented with a streamlined approach
+- Enhanced prompting effectively guides the conversation
+- Minimal state tracking captures essential information
+- Integration with Retrieval Agent works
+- UI provides necessary feedback to users
+- All tests pass and code is well-documented
+
+## SPRINT 6: Drafting Agent Implementation
+
+**Branch Name:** `feature/drafting-agent`
+
+### Task 1: Design Proposal Structure
+- **Description:** Define the structure for governance proposals
+- **Steps:**
+  1. Analyze existing governance proposals
+  2. Create templates for different proposal types
+  3. Define required sections and content
+  4. Design the validation rules
+- **Testing Criteria:** Design document clearly outlines the structure with examples
+- **Commit Point:** After completing the design and documentation
+
+### Task 2: Implement Content Generation
+- **Description:** Create utilities for generating proposal content
+- **Steps:**
+  1. Implement section-specific generation
+  2. Create formatting utilities
+  3. Add citation management
+  4. Build validation checks
+- **Testing Criteria:**
+  - Generated content is high quality
+  - Formatting is consistent
+  - Citations are properly included
+  - Validation identifies issues
+- **Commit Point:** After utilities are implemented and tested
+
+### Task 3: Create Drafting Agent Provider
+- **Description:** Implement the Drafting Agent provider
+- **Steps:**
+  1. Create `src/providers/agents/drafting.js`
+  2. Implement template-based generation
+  3. Create revision capabilities
+  4. Add validation and improvement suggestions
+- **Testing Criteria:**
+  - Agent generates well-structured proposals
+  - Revisions improve quality
+  - Validation catches issues
+>>>>>>> Stashed changes
 - **Commit Point:** After provider is implemented and tested
 
 ### Task 4: Add API Endpoints for Research

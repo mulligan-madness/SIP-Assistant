@@ -92,10 +92,10 @@ describe('Agent Provider Integration', () => {
       expect(agent.config.customOption).toBe('test');
       expect(agent.supportsCapability('retrieve')).toBe(true);
       
-      // Test getting a provider by capability
-      const researchProvider = LLMProviderFactory.getProviderWithCapability('research');
-      expect(researchProvider.constructor.name).toBe('ResearchAgentProvider');
-      expect(researchProvider.supportsCapability('research')).toBe(true);
+      // Test getting a provider by capability - replacing research with interview
+      const interviewProvider = LLMProviderFactory.getProviderWithCapability('interview');
+      expect(interviewProvider.constructor.name).toBe('InterviewAgentProvider');
+      expect(interviewProvider.supportsCapability('interview')).toBe(true);
     } finally {
       // Restore original methods
       LLMProviderFactory.validateConfig = originalValidateConfig;

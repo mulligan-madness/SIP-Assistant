@@ -68,7 +68,6 @@ The SIP-Assistant aims to revolutionize this process by automating and standardi
   - **Current Role:** Basic chat functionality with multiple provider options (OpenAI, Anthropic, Local).
   - **Future Role:** Enhanced capabilities leveraging the existing provider architecture to add specialized agent functionality:
     - **Retrieval Agent**
-    - **Research Agent**
     - **Interviewing Agent**
     - **Drafting Agent** (integrating iterative critique)
 
@@ -202,12 +201,9 @@ Build for speed and learning, not premature scaling. The implementation will pri
 - **Backend:**
   - Implement the Interviewing Agent capability
   - Connect the Retrieval Agent to the vector database
-  - Connect the Interviewing and Drafting agents
 - **Frontend:**
   - Add research visualization components
   - Implement UI for navigating research reports
-- **Integration:**
-  - Connect Retrieval and Research agents
 
 ### Phase 3: Interactive Interview & Drafting
 - **Backend:**

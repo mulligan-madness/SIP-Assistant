@@ -670,6 +670,7 @@ This minimal approach validates the core value proposition while deferring more 
 
 **Branch Name:** `feature/interview-agent`
 
+<<<<<<< Updated upstream
 ### Task 1: Design Dialogical Process Framework
 - **Description:** Define the framework for conducting interactive interviews
 - **Steps:**
@@ -692,10 +693,35 @@ This minimal approach validates the core value proposition while deferring more 
   - Follow-ups build on previous answers
   - Topics are explored deeply
 - **Commit Point:** After utilities are implemented and tested
-
-### Task 3: Create Interview Agent Provider
-- **Description:** Implement the Interview Agent provider
+=======
+### Task 1: Design Simplified Interview Process
+- **Description:** Define a streamlined approach for conducting user interviews
 - **Steps:**
+  1. Create a focused system prompt for Socratic questioning
+  2. Define minimal state tracking requirements
+  3. Design simple integration with the Retrieval Agent
+  4. Document the approach with examples
+- **Testing Criteria:** Design document clearly outlines the simplified interview process
+- **Commit Point:** After completing the design and documentation
+
+### Task 2: Implement Enhanced Prompting
+- **Description:** Create specialized prompts for effective interviewing
+- **Steps:**
+  1. Develop a core Socratic questioning prompt
+  2. Create prompts for different proposal types
+  3. Add prompts for incorporating retrieved documents
+  4. Implement prompt templates with variable substitution
+- **Testing Criteria:**
+  - Prompts effectively guide the LLM to ask insightful questions
+  - Different proposal types have appropriate specialized prompts
+  - Document references are naturally incorporated
+- **Commit Point:** After prompts are implemented and tested
+>>>>>>> Stashed changes
+
+### Task 3: Implement Minimal State Tracking
+- **Description:** Create a lightweight system for tracking interview progress
+- **Steps:**
+<<<<<<< Updated upstream
   1. Create `src/providers/agents/interview.js`
   2. Implement conversation management
   3. Create insight extraction
@@ -751,6 +777,64 @@ This minimal approach validates the core value proposition while deferring more 
 - UI supports interactive interviews
 - Insights are captured effectively
 - Branch can be merged back to main
+=======
+  1. Implement tracking for key insights extracted
+  2. Add a simple system for flagging topics that need exploration
+  3. Create a mechanism to identify contradictions or uncertainties
+  4. Keep the implementation focused on essential state only
+- **Testing Criteria:**
+  - System tracks important insights without complex state management
+  - Topics needing further exploration are properly identified
+  - Contradictions are flagged for follow-up
+- **Commit Point:** After state tracking is implemented and tested
+
+### Task 4: Update Interview Agent Provider
+- **Description:** Implement the Interview Agent provider with the simplified approach
+- **Steps:**
+  1. Update `src/providers/agents/interview.js`
+  2. Implement the `interview` method using enhanced prompting
+  3. Add methods for including relevant documents in context
+  4. Create utility functions for prompt enhancement
+- **Testing Criteria:**
+  - Agent conducts natural conversations
+  - Questions adapt based on user responses
+  - Document context is properly incorporated
+- **Commit Point:** After the provider is implemented and tested
+
+### Task 5: Create Simple Integration with Retrieval Agent
+- **Description:** Implement a straightforward integration between Interview and Retrieval agents
+- **Steps:**
+  1. Create a method to include retrieved documents in the interview context
+  2. Implement a simple mechanism for the interview agent to request relevant documents
+  3. Add formatting for document references in conversation
+  4. Keep the integration lightweight and focused
+- **Testing Criteria:**
+  - Interview agent can access relevant documents
+  - Documents are properly referenced in conversation
+  - Integration is simple and maintainable
+- **Commit Point:** After integration is complete and tested
+
+### Task 6: Add Basic UI Enhancements
+- **Description:** Make minimal UI changes to support the interview process
+- **Steps:**
+  1. Add a simple indicator for interview mode
+  2. Create a basic display for referenced documents
+  3. Implement a minimal progress indicator
+  4. Use existing UI components where possible
+- **Testing Criteria:**
+  - UI clearly indicates when in interview mode
+  - Referenced documents are easily accessible
+  - Progress is visible to the user
+- **Commit Point:** After UI enhancements are implemented and tested
+
+### Definition of Done
+- Interview Agent is implemented with a streamlined approach
+- Enhanced prompting effectively guides the conversation
+- Minimal state tracking captures essential information
+- Integration with Retrieval Agent works
+- UI provides necessary feedback to users
+- All tests pass and code is well-documented
+>>>>>>> Stashed changes
 
 ## SPRINT 7: Drafting Agent Implementation
 

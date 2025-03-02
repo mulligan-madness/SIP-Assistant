@@ -105,16 +105,25 @@ Synthesize and analyze the retrieved historical documents to extract key themes,
 
 ### 3. Interviewing Agent (Dialogical Process Avatar)
 **Role:**  
-Facilitate a dynamic, iterative dialogue with the user to draw out and develop both implicit and explicit knowledge.
+Facilitate a dynamic, iterative dialogue with the user to draw out and develop both implicit and explicit knowledge through focused Socratic questioning.
 
 **Functionality:**  
-- **Insight Extraction:**  
-  - Ask thoughtful, curiosity-driven questions to help surface underlying insights.
-  - Contextually probe based on historical data and user input.
+- **Enhanced Prompting:**  
+  - Leverage specialized system prompts that guide the LLM to ask thoughtful, curiosity-driven questions.
+  - Use prompt templates tailored to different proposal types and governance contexts.
+  - Incorporate relevant documents from the Retrieval Agent directly into the conversation context.
+
+- **Minimal State Tracking:**  
+  - Track key insights extracted during the conversation without complex state management.
+  - Maintain a lightweight list of topics that need further exploration.
+  - Flag contradictions or uncertainties for follow-up questioning.
+
 - **Knowledge & Creativity Development:**  
   - Engage in collaborative dialogue that not only extracts information but helps the user refine and expand on their ideas.
   - Serve as the interactive "face" of the process, making the conversation natural and evolving.
-- **Output:** A set of refined ideas and contextual insights that feed into the drafting process.
+  - Reference relevant governance documents to ground the discussion in established precedents.
+
+- **Output:** A set of refined ideas and contextual insights that feed into the drafting process, with clear connections to relevant governance documents.
 
 ### 4. Drafting Agent (Including Iterative Critique)
 **Role:**  

@@ -22,6 +22,9 @@ class InterviewAgentProvider extends BaseAgentProvider {
     // Initialize state tracking
     this.state = new InterviewState();
     this.enableStateTracking = config.enableStateTracking !== false;
+    
+    // Store the retrieval agent if provided
+    this.retrievalAgent = config.retrievalAgent || null;
   }
 
   /**
@@ -39,9 +42,34 @@ class InterviewAgentProvider extends BaseAgentProvider {
     const enhancedMessages = [...messages];
     
     // If we have documents from the retrieval agent, incorporate them
-    if (context.documents && context.documents.length > 0) {
-      // Create an enhanced system prompt with document references
-      const enhancedPrompt = createInterviewPrompt(context.documents, {
+    let documents = context.documents || [];
+    
+    // If we have a retrieval agent and no documents provided, try to retrieve relevant ones
+    if (this.retrievalAgent && documents.length === 0 && messages.length > 0) {
+      // Check if we should look for knowledge gaps
+      if (options.identifyKnowledgeGaps) {
+        const { gaps, documents: gapDocuments } = await this.identifyKnowledgeGaps(messages);
+        
+        // If we found knowledge gaps, add them to the context
+        if (gaps.length > 0) {
+          documents = [...documents, ...gapDocuments];
+          
+          // Add a hint about the knowledge gaps
+          enhancedMessages.push({
+            role: 'system',
+            content: `I've identified some knowledge gaps that might be relevant: ${gaps.join(', ')}. Consider asking about these topics.`
+          });
+        }
+      } else {
+        // Just retrieve documents based on the conversation
+        const relevantDocuments = await this.requestRelevantDocuments(messages);
+        documents = [...documents, ...relevantDocuments];
+      }
+    }
+    
+    // Create an enhanced system prompt with document references if we have documents
+    if (documents.length > 0) {
+      const enhancedPrompt = createInterviewPrompt(documents, {
         additionalContext: context.additionalContext
       });
       
@@ -170,6 +198,106 @@ class InterviewAgentProvider extends BaseAgentProvider {
    */
   supportsCapability(capability) {
     return capability === 'interview';
+  }
+
+  /**
+   * Request relevant documents from the Retrieval Agent based on the conversation
+   * @param {Array} messages - The conversation history
+   * @param {Object} options - Additional options for retrieval
+   * @returns {Promise<Array>} - Array of relevant documents
+   */
+  async requestRelevantDocuments(messages, options = {}) {
+    if (!this.retrievalAgent) {
+      this._logOperation('requestRelevantDocuments', { error: 'No retrieval agent available' });
+      return [];
+    }
+    
+    try {
+      // Extract the most recent user message
+      const userMessages = messages.filter(m => m.role === 'user');
+      if (userMessages.length === 0) {
+        return [];
+      }
+      
+      const latestUserMessage = userMessages[userMessages.length - 1].content;
+      
+      // Extract topics from the conversation to enhance the query
+      const topics = this.state.getTopicsForExploration();
+      const topicStrings = topics.map(t => t.topic).join(', ');
+      
+      // Create a search query based on the latest message and identified topics
+      let searchQuery = latestUserMessage;
+      if (topicStrings) {
+        searchQuery += ` Topics: ${topicStrings}`;
+      }
+      
+      this._logOperation('requestRelevantDocuments', { searchQuery });
+      
+      // Request documents from the retrieval agent
+      const documents = await this.retrievalAgent.retrieve(searchQuery, options);
+      
+      return documents;
+    } catch (error) {
+      this._logOperation('requestRelevantDocuments', { error: error.message });
+      return [];
+    }
+  }
+
+  /**
+   * Identify knowledge gaps and request relevant documents
+   * @param {Array} messages - The conversation history
+   * @param {Object} options - Additional options for retrieval
+   * @returns {Promise<Object>} - Object containing knowledge gaps and relevant documents
+   */
+  async identifyKnowledgeGaps(messages, options = {}) {
+    if (!this.retrievalAgent) {
+      return { gaps: [], documents: [] };
+    }
+    
+    try {
+      // Use the LLM to identify knowledge gaps
+      const gapPrompt = `
+        Based on the following conversation, identify specific knowledge gaps that could be filled with additional information.
+        Focus on governance-related topics that would benefit from factual information or precedents.
+        
+        Conversation:
+        ${messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n')}
+        
+        List up to 3 specific knowledge gaps in the format:
+        1. [Brief description of gap]
+        2. [Brief description of gap]
+        3. [Brief description of gap]
+      `;
+      
+      const gapResponse = await this.llmProvider.complete(gapPrompt);
+      
+      // Parse the response to extract knowledge gaps
+      const gaps = gapResponse
+        .split('\n')
+        .filter(line => /^\d+\./.test(line))
+        .map(line => line.replace(/^\d+\.\s*/, '').trim());
+      
+      this._logOperation('identifyKnowledgeGaps', { gaps });
+      
+      // If we have gaps, request documents for each one
+      let allDocuments = [];
+      if (gaps.length > 0) {
+        for (const gap of gaps) {
+          const gapDocuments = await this.retrievalAgent.retrieve(gap, options);
+          allDocuments = [...allDocuments, ...gapDocuments];
+        }
+        
+        // Remove duplicates
+        allDocuments = allDocuments.filter((doc, index, self) => 
+          index === self.findIndex(d => d.id === doc.id)
+        );
+      }
+      
+      return { gaps, documents: allDocuments };
+    } catch (error) {
+      this._logOperation('identifyKnowledgeGaps', { error: error.message });
+      return { gaps: [], documents: [] };
+    }
   }
 }
 

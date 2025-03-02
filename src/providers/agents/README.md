@@ -19,11 +19,6 @@ The framework includes the following agent types:
 - **Key Method**: `retrieve(query, options)`
 - **Implementation Timeline**: Sprint 4
 
-### Research Agent
-- **Purpose**: Analyze documents to extract insights and themes
-- **Key Method**: `research(documents, topic, options)`
-- **Implementation Timeline**: Sprint 5
-
 ### Interview Agent
 - **Purpose**: Conduct interactive dialogues to extract knowledge
 - **Key Method**: `interview(messages, context, options)`
@@ -58,16 +53,16 @@ const results = await retrievalAgent.retrieve('governance proposal standards');
 ```javascript
 const { LLMProviderFactory } = require('../factory');
 
-// Get a provider that supports the 'research' capability
-const researchProvider = LLMProviderFactory.getProviderWithCapability('research', {
+// Get a provider that supports the 'retrieve' capability
+const retrieveProvider = LLMProviderFactory.getProviderWithCapability('retrieve', {
   llmProvider: 'anthropic',
   llmConfig: {
     model: 'claude-3-opus-20240229'
   }
 });
 
-// Use the research capability
-const report = await researchProvider.research(documents, 'DAO Governance');
+// Use the retrieve capability
+const results = await retrieveProvider.retrieve('DAO Governance');
 ```
 
 ## Extending the Framework
@@ -84,6 +79,5 @@ To add a new agent type:
 
 - ✅ Base framework (Sprint 3)
 - 🔄 Retrieval Agent (Planned for Sprint 4)
-- 🔄 Research Agent (Planned for Sprint 5)
 - 🔄 Interview Agent (Planned for Sprint 6)
 - 🔄 Drafting Agent (Planned for Sprint 7) 

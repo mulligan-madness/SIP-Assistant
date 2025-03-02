@@ -600,6 +600,12 @@ const debugVectorStore = async () => {
   line-height: 1.5;
 }
 
+/* Remove the duplicate hyperlink styling and use a class instead */
+:deep(.document-card__text) {
+  /* This will apply the markdown-content styling to the document text */
+  composes: markdown-content from global;
+}
+
 .document-card__citation {
   background: var(--background-color, #121212);
   padding: 12px;
@@ -672,6 +678,12 @@ const debugVectorStore = async () => {
   border: 1px solid var(--border-color, #333);
 }
 
+/* Remove the duplicate hyperlink styling and use a class instead */
+:deep(.research-panel__help) {
+  /* This will apply the markdown-content styling to the help section */
+  composes: markdown-content from global;
+}
+
 .research-panel__help h3 {
   margin: 0 0 12px 0;
   font-size: 16px;
@@ -724,6 +736,12 @@ const debugVectorStore = async () => {
   text-align: center;
   padding: 32px 16px;
   color: var(--text-secondary, #aaa);
+}
+
+/* Remove the duplicate hyperlink styling and use a class instead */
+:deep(.no-results) {
+  /* This will apply the markdown-content styling to the no results section */
+  composes: markdown-content from global;
 }
 
 .search-tip {

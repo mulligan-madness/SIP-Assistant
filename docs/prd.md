@@ -68,7 +68,6 @@ The SIP-Assistant aims to revolutionize this process by automating and standardi
   - **Current Role:** Basic chat functionality with multiple provider options (OpenAI, Anthropic, Local).
   - **Future Role:** Enhanced capabilities leveraging the existing provider architecture to add specialized agent functionality:
     - **Retrieval Agent**
-    - **Research Agent**
     - **Interviewing Agent**
     - **Drafting Agent** (integrating iterative critique)
 
@@ -92,18 +91,7 @@ Automate the retrieval of semantically relevant historical governance data from 
   - Rank and filter results based on relevance.
 - **Output:** A collection of relevant governance documents with contextual metadata and citations.
 
-### 2. Research Agent
-**Role:**  
-Synthesize and analyze the retrieved historical documents to extract key themes, trends, and unresolved governance issues.
-
-**Functionality:**  
-- **Input:** Retrieved documents from the Retrieval Agent and the user's topic.
-- **Process:**  
-  - Apply NLP summarization techniques to identify recurring patterns and salient points.
-  - Perform gap analysis to highlight unresolved issues and align historical discourse with the current proposal's objectives.
-- **Output:** A structured research report summarizing key findings, themes, and recommended focal points.
-
-### 3. Interviewing Agent (Dialogical Process Avatar)
+### 2. Interviewing Agent (Dialogical Process Avatar)
 **Role:**  
 Facilitate a dynamic, iterative dialogue with the user to draw out and develop both implicit and explicit knowledge.
 
@@ -116,14 +104,14 @@ Facilitate a dynamic, iterative dialogue with the user to draw out and develop b
   - Serve as the interactive "face" of the process, making the conversation natural and evolving.
 - **Output:** A set of refined ideas and contextual insights that feed into the drafting process.
 
-### 4. Drafting Agent (Including Iterative Critique)
+### 3. Drafting Agent (Including Iterative Critique)
 **Role:**  
-Generate a well-structured, DAO-compliant governance proposal by integrating inputs from the Research and Interviewing Agents, while also incorporating iterative feedback.
+Generate a well-structured, DAO-compliant governance proposal by integrating inputs from the Retrieval and Interviewing Agents, while also incorporating iterative feedback.
 
 **Functionality:**  
 - **Input:**  
-  - The research report from the Research Agent.
-  - Insights and refined ideas from the Interviewing Agent.
+  - The retrieved documents from the Retrieval Agent.
+  - The user's responses from the Interviewing Agent.
 - **Process:**  
   - Map inputs to a predefined DAO governance template.
   - Generate a draft proposal and iteratively refine it based on simulated critique.
@@ -211,14 +199,11 @@ Build for speed and learning, not premature scaling. The implementation will pri
 
 ### Phase 2: Research & Analysis
 - **Backend:**
-  - Implement the Research Agent capability
-  - Add summarization and theme extraction
-  - Create a structured research report format
+  - Implement the Interviewing Agent capability
+  - Connect the Retrieval Agent to the vector database
 - **Frontend:**
   - Add research visualization components
   - Implement UI for navigating research reports
-- **Integration:**
-  - Connect Retrieval and Research agents
 
 ### Phase 3: Interactive Interview & Drafting
 - **Backend:**

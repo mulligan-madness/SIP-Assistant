@@ -436,7 +436,7 @@ export default {
         // Focus the input
         messageInput.focus();
       }
-    };
+    }
 
     return {
       messages,

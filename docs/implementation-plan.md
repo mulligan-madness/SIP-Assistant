@@ -585,6 +585,7 @@ This minimal approach validates the core value proposition while deferring more 
 **Branch Name:** `feature/research-agent`
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 ### Task 1: Design Research Processing Pipeline
 - **Description:** Define the workflow for analyzing retrieved documents
 - **Steps:**
@@ -646,6 +647,34 @@ This minimal approach validates the core value proposition while deferring more 
 ### Task 3: Implement Minimal State Tracking
 - **Description:** Create a lightweight system for tracking interview progress
 - **Steps:**
+=======
+### Task 1: Design Simplified Interview Process
+- **Description:** Define a streamlined approach for conducting user interviews
+- **Steps:**
+  1. Create a focused system prompt for Socratic questioning
+  2. Define minimal state tracking requirements
+  3. Design simple integration with the Retrieval Agent
+  4. Document the approach with examples
+- **Testing Criteria:** Design document clearly outlines the simplified interview process
+- **Commit Point:** After completing the design and documentation
+
+### Task 2: Implement Enhanced Prompting
+- **Description:** Create specialized prompts for effective interviewing
+- **Steps:**
+  1. Develop a core Socratic questioning prompt
+  2. Create prompts for different proposal types
+  3. Add prompts for incorporating retrieved documents
+  4. Implement prompt templates with variable substitution
+- **Testing Criteria:**
+  - Prompts effectively guide the LLM to ask insightful questions
+  - Different proposal types have appropriate specialized prompts
+  - Document references are naturally incorporated
+- **Commit Point:** After prompts are implemented and tested
+
+### Task 3: Implement Minimal State Tracking
+- **Description:** Create a lightweight system for tracking interview progress
+- **Steps:**
+>>>>>>> Stashed changes
   1. Implement tracking for key insights extracted
   2. Add a simple system for flagging topics that need exploration
   3. Create a mechanism to identify contradictions or uncertainties

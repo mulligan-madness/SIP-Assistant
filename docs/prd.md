@@ -95,6 +95,7 @@ Automate the retrieval of semantically relevant historical governance data from 
 ### 2. Research Agent
 **Role:**  
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 Synthesize and analyze the retrieved historical documents to extract key themes, trends, and unresolved governance issues.
 
 **Functionality:**  
@@ -109,6 +110,11 @@ Synthesize and analyze the retrieved historical documents to extract key themes,
 Facilitate a dynamic, iterative dialogue with the user to draw out and develop both implicit and explicit knowledge through focused Socratic questioning.
 
 **Functionality:**  
+=======
+Facilitate a dynamic, iterative dialogue with the user to draw out and develop both implicit and explicit knowledge through focused Socratic questioning.
+
+**Functionality:**  
+>>>>>>> Stashed changes
 =======
 Facilitate a dynamic, iterative dialogue with the user to draw out and develop both implicit and explicit knowledge through focused Socratic questioning.
 
@@ -129,7 +135,12 @@ Facilitate a dynamic, iterative dialogue with the user to draw out and develop b
   - Serve as the interactive "face" of the process, making the conversation natural and evolving.
   - Reference relevant governance documents to ground the discussion in established precedents.
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+
+- **Output:** A set of refined ideas and contextual insights that feed into the drafting process, with clear connections to relevant governance documents.
+>>>>>>> Stashed changes
 
 - **Output:** A set of refined ideas and contextual insights that feed into the drafting process, with clear connections to relevant governance documents.
 >>>>>>> Stashed changes

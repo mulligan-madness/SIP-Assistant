@@ -35,38 +35,6 @@ async function retrievalAgentExample() {
 }
 
 /**
- * Example: Creating and using a Research Agent
- */
-async function researchAgentExample() {
-  // Create a research agent with Anthropic as the underlying provider
-  const researchAgent = LLMProviderFactory.createProvider('researchAgent', {
-    llmProvider: 'anthropic',
-    llmConfig: {
-      model: 'claude-3-opus-20240229'
-    },
-    systemPrompt: 'You are a specialized research assistant focused on DAO governance.'
-  });
-  
-  // Sample documents for research
-  const documents = [
-    { id: 'doc1', content: 'DAO governance requires clear proposal standards...', metadata: { source: 'forum' } },
-    { id: 'doc2', content: 'Voting mechanisms should be transparent and secure...', metadata: { source: 'wiki' } }
-  ];
-  
-  // Use the research capability
-  try {
-    const report = await researchAgent.research(documents, 'DAO Governance Standards', {
-      format: 'markdown',
-      includeGaps: true
-    });
-    
-    console.log('Research report:', report);
-  } catch (error) {
-    console.error('Research not yet implemented:', error.message);
-  }
-}
-
-/**
  * Example: Creating and using an Interview Agent
  */
 async function interviewAgentExample() {
@@ -153,23 +121,21 @@ async function draftingAgentExample() {
  * Example: Getting a provider by capability
  */
 async function capabilityExample() {
-  // Get a provider that supports the 'research' capability
-  const provider = LLMProviderFactory.getProviderWithCapability('research');
+  // Get a provider that supports the 'retrieve' capability
+  const provider = LLMProviderFactory.getProviderWithCapability('retrieve');
   
-  console.log('Provider supports research:', provider.supportsCapability('research'));
+  console.log('Provider supports retrieve:', provider.supportsCapability('retrieve'));
   console.log('Provider type:', provider.constructor.name);
 }
 
 // These examples would be run in a real application
 // retrievalAgentExample();
-// researchAgentExample();
 // interviewAgentExample();
 // draftingAgentExample();
 // capabilityExample();
 
 module.exports = {
   retrievalAgentExample,
-  researchAgentExample,
   interviewAgentExample,
   draftingAgentExample,
   capabilityExample

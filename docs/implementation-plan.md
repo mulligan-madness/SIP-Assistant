@@ -44,7 +44,6 @@ SIP-Assistant/
 │   │   │   ├── MessageList.vue
 │   │   │   ├── MessageInput.vue
 │   │   │   └── [other chat components]
-│   │   ├── research/
 │   │   ├── interview/
 │   │   └── drafting/
 │   ├── providers/
@@ -53,7 +52,6 @@ SIP-Assistant/
 │   │   ├── [existing providers]
 │   │   └── agents/
 │   │       ├── retrieval.js
-│   │       ├── research.js
 │   │       ├── interview.js
 │   │       └── drafting.js
 │   ├── services/
@@ -79,15 +77,11 @@ Refactor the existing codebase to improve maintainability, reduce file sizes, an
 
 Add vector search capabilities and implement the Retrieval Agent for finding relevant governance documents.
 
-## EPIC 3: Research Agent Implementation
-
-Implement the Research Agent for analyzing and summarizing retrieved documents.
-
-## EPIC 4: Interviewing Agent Implementation
+## EPIC 3: Interviewing Agent Implementation
 
 Create the Interviewing Agent for facilitating dynamic dialogues with users.
 
-## EPIC 5: Drafting Agent Implementation
+## EPIC 4: Drafting Agent Implementation
 
 Develop the Drafting Agent for generating structured governance proposals.
 
@@ -580,6 +574,7 @@ To validate the research panel MVP, users should perform the following specific 
 
 This minimal approach validates the core value proposition while deferring more complex features until after initial user feedback is received.
 
+<<<<<<< HEAD
 ## SPRINT 5: Research Agent Implementation
 
 **Branch Name:** `feature/research-agent`
@@ -827,25 +822,33 @@ This minimal approach validates the core value proposition while deferring more 
 <<<<<<< Updated upstream
 ### Task 1: Design Dialogical Process Framework
 - **Description:** Define the framework for conducting interactive interviews
+=======
+## SPRINT 5: Interviewing Agent Implementation
+
+**Branch Name:** `feature/interview-agent`
+
+### Task 1: Design Interview Process Flow
+- **Description:** Define the workflow for conducting user interviews
+>>>>>>> 2a307b455f718f57843cdd80318e395acca66c2c
 - **Steps:**
-  1. Design the conversational flow
-  2. Define question generation strategies
-  3. Create techniques for extracting insights
-  4. Design the output format for captured knowledge
-- **Testing Criteria:** Design document clearly outlines the process with examples
+  1. Design the conversation flow for different proposal types
+  2. Create question templates for different stages
+  3. Define how to track and use user responses
+  4. Design the integration with other agents
+- **Testing Criteria:** Design document clearly outlines the interview process
 - **Commit Point:** After completing the design and documentation
 
-### Task 2: Implement Question Generation
-- **Description:** Create utilities for generating insightful questions
+### Task 2: Implement Conversation Management
+- **Description:** Create utilities for managing interview conversations
 - **Steps:**
-  1. Implement context-aware question generation
-  2. Create follow-up question strategies
-  3. Add topic exploration techniques
-  4. Build reflection prompts
+  1. Implement conversation state tracking
+  2. Create question generation algorithms
+  3. Add response analysis capabilities
+  4. Build follow-up question generation
 - **Testing Criteria:**
-  - Questions are relevant to context
-  - Follow-ups build on previous answers
-  - Topics are explored deeply
+  - Conversation flows naturally
+  - Questions are relevant to previous responses
+  - Follow-up questions explore topics in depth
 - **Commit Point:** After utilities are implemented and tested
 =======
 ### Task 1: Design Simplified Interview Process
@@ -878,55 +881,42 @@ This minimal approach validates the core value proposition while deferring more 
 <<<<<<< Updated upstream
   1. Create `src/providers/agents/interview.js`
   2. Implement conversation management
-  3. Create insight extraction
-  4. Add knowledge capturing
+  3. Create dynamic question generation
+  4. Add insight extraction from responses
 - **Testing Criteria:**
   - Agent conducts natural conversations
-  - Insights are extracted correctly
-  - Knowledge is properly structured
-- **Commit Point:** After provider is implemented and tested
+  - Questions adapt based on user responses
+  - Insights are correctly extracted
+- **Commit Point:** After the provider is implemented and tested
 
-### Task 4: Add API Endpoints for Interviews
-- **Description:** Create API endpoints for interview functionality
+### Task 4: Connect with Retrieval Agent
+- **Description:** Integrate the Interview Agent with the Retrieval Agent
 - **Steps:**
-  1. Update API service to add interview endpoints
-  2. Implement conversation state management
-  3. Add insight tracking
-  4. Connect to the frontend
+  1. Create a workflow for using retrieved documents in interviews
+  2. Implement context-aware questioning based on retrieved documents
+  3. Add ability to ask for clarification on document content
 - **Testing Criteria:**
-  - Endpoints handle conversations correctly
-  - State management preserves context
-  - Insights are properly tracked
-- **Commit Point:** After endpoints are added and tested
+  - Interview questions reference relevant documents
+  - Agent can explain document content to users
+  - Conversation incorporates document context
+- **Commit Point:** After integration is complete and tested
 
-### Task 5: Create Interview UI
-- **Description:** Implement UI for the interviewing process
+### Task 5: Add Frontend Interview Components
+- **Description:** Create UI components for the interview process
 - **Steps:**
-  1. Create `components/interview/InterviewPanel.vue`
-  2. Implement conversation display
-  3. Add insight highlighting
-  4. Create controls for the interview process
+  1. Design and implement interview interface
+  2. Add progress tracking and visualization
+  3. Create components for displaying referenced documents
+  4. Implement interview session management
 - **Testing Criteria:**
-  - Conversation displays naturally
-  - Insights are highlighted
-  - Controls work as expected
-- **Commit Point:** After UI is implemented and tested
+  - Interface is intuitive and responsive
+  - Progress is clearly displayed
+  - Document references are easy to access
+- **Commit Point:** After components are implemented and tested
 
-### Task 6: Implement Integration with Research
-- **Description:** Connect the Research and Interview agents
-- **Steps:**
-  1. Create workflow for using research to inform interviews
-  2. Implement context sharing
-  3. Add automatic suggestion of topics
-  4. Create visual indicators for related information
-- **Testing Criteria:**
-  - Integration provides valuable context
-  - Suggestions are relevant
-  - Visual indicators are helpful
-- **Commit Point:** After integration is implemented and tested
-
-### Sprint 6 Completion Checklist:
+### Definition of Done
 - Interview Agent is fully implemented
+<<<<<<< HEAD
 - Integration with Research Agent works
 - UI supports interactive interviews
 - Insights are captured effectively
@@ -989,107 +979,102 @@ This minimal approach validates the core value proposition while deferring more 
 - UI provides necessary feedback to users
 - All tests pass and code is well-documented
 >>>>>>> Stashed changes
+=======
+- Conversation management works correctly
+- Integration with Retrieval Agent works
+- Frontend components provide a good user experience
+- All tests pass and code is well-documented
+>>>>>>> 2a307b455f718f57843cdd80318e395acca66c2c
 
-## SPRINT 7: Drafting Agent Implementation
+## SPRINT 6: Drafting Agent Implementation
 
 **Branch Name:** `feature/drafting-agent`
 
-### Task 1: Design Proposal Structure Templates
-- **Description:** Define templates for DAO governance proposals
+### Task 1: Design Proposal Structure
+- **Description:** Define the structure for governance proposals
 - **Steps:**
-  1. Research governance proposal standards
-  2. Create structured templates
-  3. Define section requirements
-  4. Create validation rules
-- **Testing Criteria:** Templates are comprehensive and follow DAO standards
+  1. Analyze existing governance proposals
+  2. Create templates for different proposal types
+  3. Define required sections and content
+  4. Design the validation rules
+- **Testing Criteria:** Design document clearly outlines the structure with examples
 - **Commit Point:** After completing the design and documentation
 
-### Task 2: Implement Draft Generation
-- **Description:** Create utilities for generating proposal drafts
+### Task 2: Implement Content Generation
+- **Description:** Create utilities for generating proposal content
 - **Steps:**
-  1. Implement section generation based on templates
-  2. Create content structuring algorithms
+  1. Implement section-specific generation
+  2. Create formatting utilities
   3. Add citation management
-  4. Build logical flow optimization
+  4. Build validation checks
 - **Testing Criteria:**
-  - Sections are properly generated
-  - Content is well-structured
-  - Citations are correctly formatted
+  - Generated content is high quality
+  - Formatting is consistent
+  - Citations are properly included
+  - Validation identifies issues
 - **Commit Point:** After utilities are implemented and tested
 
-### Task 3: Implement Critique Simulation
-- **Description:** Create mechanisms for simulating community feedback
-- **Steps:**
-  1. Implement critique generation
-  2. Create response generation
-  3. Add iterative improvement
-  4. Build validation against standards
-- **Testing Criteria:**
-  - Critiques are reasonable
-  - Responses address issues
-  - Iterative process improves quality
-- **Commit Point:** After critique system is implemented and tested
-
-### Task 4: Create Drafting Agent Provider
+### Task 3: Create Drafting Agent Provider
 - **Description:** Implement the Drafting Agent provider
 - **Steps:**
   1. Create `src/providers/agents/drafting.js`
-  2. Implement draft generation pipeline
-  3. Create critique and revision system
-  4. Add finalization process
+  2. Implement template-based generation
+  3. Create revision capabilities
+  4. Add validation and improvement suggestions
 - **Testing Criteria:**
-  - Agent produces well-structured proposals
-  - Critique system improves drafts
-  - Final output meets standards
+  - Agent generates well-structured proposals
+  - Revisions improve quality
+  - Validation catches issues
 - **Commit Point:** After provider is implemented and tested
 
-### Task 5: Add API Endpoints for Drafting
+### Task 4: Add API Endpoints for Drafting
 - **Description:** Create API endpoints for drafting functionality
 - **Steps:**
   1. Update API service to add drafting endpoints
-  2. Implement draft state management
-  3. Add revision tracking
+  2. Implement draft management
+  3. Add version control
   4. Connect to the frontend
 - **Testing Criteria:**
   - Endpoints handle drafts correctly
-  - State management preserves revisions
-  - Process is properly tracked
+  - Version control works as expected
+  - Performance is acceptable
 - **Commit Point:** After endpoints are added and tested
 
-### Task 6: Create Drafting UI
+### Task 5: Create Drafting UI
 - **Description:** Implement UI for the drafting process
 - **Steps:**
   1. Create `components/drafting/DraftingPanel.vue`
-  2. Implement draft display with sections
-  3. Add revision history and diff view
-  4. Create controls for the drafting process
+  2. Implement draft display and editing
+  3. Add version history and comparison
+  4. Create export functionality
 - **Testing Criteria:**
-  - Draft displays properly with sections
-  - Revision history shows changes
-  - Controls work as expected
+  - Drafts display correctly
+  - Editing works smoothly
+  - Version comparison is clear
+  - Export produces well-formatted output
 - **Commit Point:** After UI is implemented and tested
 
-### Task 7: Implement Full System Integration
-- **Description:** Connect all agents into a complete workflow
+### Task 6: Implement Integration with Interview Agent
+- **Description:** Connect the Interview and Drafting agents
 - **Steps:**
-  1. Create end-to-end workflow
-  2. Implement state management across agents
-  3. Add progress tracking
-  4. Create comprehensive UI for the entire process
+  1. Create workflow for using interview insights in drafting
+  2. Implement automatic incorporation of key points
+  3. Add suggestion of content based on interview
+  4. Create visual indicators for source of content
 - **Testing Criteria:**
-  - Complete workflow functions correctly
-  - State is properly maintained
-  - Progress is clearly indicated
+  - Integration incorporates relevant insights
+  - Suggestions are helpful
+  - Source indicators are clear
 - **Commit Point:** After integration is implemented and tested
 
-### Sprint 7 Completion Checklist:
+### Definition of Done
 - Drafting Agent is fully implemented
-- Integration with all other agents works
-- UI supports the complete proposal creation process
-- Output meets governance standards
-- Branch can be merged back to main
+- Integration with Interview Agent works
+- UI supports draft creation and editing
+- Export functionality works correctly
+- All tests pass and code is well-documented
 
-## SPRINT 8: Quality Assurance & Polish
+## SPRINT 7: Quality Assurance & Polish
 
 **Branch Name:** `quality/final-polish`
 
@@ -1165,7 +1150,7 @@ This minimal approach validates the core value proposition while deferring more 
   - Screen readers properly announce content
 - **Commit Point:** After accessibility improvements are implemented
 
-### Sprint 8 Completion Checklist:
+### Sprint 7 Completion Checklist:
 - System is fully tested
 - Performance is optimized
 - Error handling is robust

@@ -2,7 +2,6 @@ const { LLMProviderFactory } = require('../../src/providers/factory');
 const { BaseLLMProvider } = require('../../src/providers/base');
 const { BaseAgentProvider } = require('../../src/providers/agents/base');
 const { RetrievalAgentProvider } = require('../../src/providers/agents/retrieval');
-const { ResearchAgentProvider } = require('../../src/providers/agents/research');
 const { InterviewAgentProvider } = require('../../src/providers/agents/interview');
 const { DraftingAgentProvider } = require('../../src/providers/agents/drafting');
 
@@ -15,7 +14,6 @@ describe('Agent Provider Framework', () => {
     test('should have agent capability methods', () => {
       const provider = new BaseLLMProvider();
       expect(typeof provider.retrieve).toBe('function');
-      expect(typeof provider.research).toBe('function');
       expect(typeof provider.interview).toBe('function');
       expect(typeof provider.draft).toBe('function');
       expect(typeof provider.supportsCapability).toBe('function');
@@ -24,7 +22,6 @@ describe('Agent Provider Framework', () => {
     test('should not support any capabilities by default', () => {
       const provider = new BaseLLMProvider();
       expect(provider.supportsCapability('retrieve')).toBe(false);
-      expect(provider.supportsCapability('research')).toBe(false);
       expect(provider.supportsCapability('interview')).toBe(false);
       expect(provider.supportsCapability('draft')).toBe(false);
     });
@@ -62,15 +59,9 @@ describe('Agent Provider Framework', () => {
       
       const retrievalAgent = new RetrievalAgentProvider(mockLLM, {});
       expect(retrievalAgent.supportsCapability('retrieve')).toBe(true);
-      expect(retrievalAgent.supportsCapability('research')).toBe(false);
-      
-      const researchAgent = new ResearchAgentProvider(mockLLM, {});
-      expect(researchAgent.supportsCapability('research')).toBe(true);
-      expect(researchAgent.supportsCapability('retrieve')).toBe(false);
       
       const interviewAgent = new InterviewAgentProvider(mockLLM, {});
       expect(interviewAgent.supportsCapability('interview')).toBe(true);
-      expect(interviewAgent.supportsCapability('research')).toBe(false);
       
       const draftingAgent = new DraftingAgentProvider(mockLLM, {});
       expect(draftingAgent.supportsCapability('draft')).toBe(true);

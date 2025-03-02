@@ -1,5 +1,7 @@
 const { BaseAgentProvider } = require('./base');
 const { CORE_INTERVIEW_PROMPT, createInterviewPrompt } = require('./prompts/interview');
+const { InterviewState } = require('./state/interviewState');
+const { analyzeConversation } = require('./state/conversationAnalyzer');
 
 /**
  * Interview Agent Provider
@@ -18,9 +20,8 @@ class InterviewAgentProvider extends BaseAgentProvider {
     });
     
     // Initialize state tracking
-    this.insights = [];
-    this.topicsForExploration = [];
-    this.contradictions = [];
+    this.state = new InterviewState();
+    this.enableStateTracking = config.enableStateTracking !== false;
   }
 
   /**
@@ -56,14 +57,47 @@ class InterviewAgentProvider extends BaseAgentProvider {
       });
     }
     
+    // Update state tracking before generating a response
+    if (this.enableStateTracking) {
+      this._updateStateTracking(enhancedMessages);
+      
+      // If we have unresolved contradictions, add a hint to address them
+      const unresolvedContradictions = this.state.getContradictions({ status: 'unresolved' });
+      if (unresolvedContradictions.length > 0) {
+        const contradiction = unresolvedContradictions[0]; // Focus on one at a time
+        enhancedMessages.push({
+          role: 'system',
+          content: `The user has made potentially contradictory statements: "${contradiction.statement1}" and "${contradiction.statement2}". Consider asking a clarifying question about this topic.`
+        });
+      }
+      
+      // If we have pending topics with high priority, suggest exploring them
+      const pendingTopics = this.state.getTopicsForExploration({ status: 'pending', priority: 'high' });
+      if (pendingTopics.length > 0) {
+        enhancedMessages.push({
+          role: 'system',
+          content: `Consider exploring the topic of "${pendingTopics[0].topic}" which seems important but hasn't been fully discussed.`
+        });
+      }
+    }
+    
     // Get a response from the LLM
     const response = await this.llmProvider.chat(enhancedMessages, {
       temperature: options.temperature || this.temperature,
       systemPrompt: this.getSystemPrompt()
     });
     
-    // Update our state tracking (in a real implementation, this would analyze the response)
-    this._updateStateTracking(enhancedMessages, response);
+    // Update state with the agent's response
+    if (this.enableStateTracking) {
+      // Add the agent's response to the conversation for analysis
+      const fullConversation = [
+        ...enhancedMessages,
+        { role: 'assistant', content: response }
+      ];
+      
+      // Update state with the full conversation including the response
+      this._updateStateTracking(fullConversation);
+    }
     
     return response;
   }
@@ -71,21 +105,62 @@ class InterviewAgentProvider extends BaseAgentProvider {
   /**
    * Update state tracking based on the conversation
    * @param {Array} messages - The conversation history
-   * @param {string} response - The agent's response
    * @private
    */
-  _updateStateTracking(messages, response) {
-    // This is a simplified implementation
-    // In a real implementation, we would:
-    // 1. Extract insights from user messages
-    // 2. Identify topics that need further exploration
-    // 3. Detect contradictions in user statements
+  _updateStateTracking(messages) {
+    if (!this.enableStateTracking) return;
     
-    // For now, just log that we're tracking state
+    // Use the conversation analyzer to update state
+    analyzeConversation(messages, this.state);
+    
+    // Log state tracking update
     this._logOperation('updateStateTracking', { 
       messageCount: messages.length,
-      responseLength: response.length
+      stateSummary: this.state.getSummary()
     });
+  }
+
+  /**
+   * Get the current state of the interview
+   * @returns {Object} - The current state
+   */
+  getState() {
+    return this.state.export();
+  }
+  
+  /**
+   * Import a previously saved state
+   * @param {Object} state - The state to import
+   */
+  importState(state) {
+    this.state.import(state);
+  }
+
+  /**
+   * Get insights extracted from the conversation
+   * @param {Object} filters - Optional filters for insights
+   * @returns {Array} - Array of insights
+   */
+  getInsights(filters = {}) {
+    return this.state.getInsights(filters);
+  }
+  
+  /**
+   * Get topics identified for further exploration
+   * @param {Object} filters - Optional filters for topics
+   * @returns {Array} - Array of topics
+   */
+  getTopicsForExploration(filters = {}) {
+    return this.state.getTopicsForExploration(filters);
+  }
+  
+  /**
+   * Get contradictions detected in the conversation
+   * @param {Object} filters - Optional filters for contradictions
+   * @returns {Array} - Array of contradictions
+   */
+  getContradictions(filters = {}) {
+    return this.state.getContradictions(filters);
   }
 
   /**

@@ -11,6 +11,7 @@ const { DiscourseScraper } = require('./scraper');
 const VectorService = require('./vector');
 const { documentService } = require('./document');
 const { ChatService } = require('./chat');
+const { agentFactory } = require('../providers/agents/factory');
 
 // Rate limiting middleware
 const limiter = rateLimit({
@@ -34,6 +35,14 @@ const validateRetrievalInput = [
   body('query').trim().notEmpty().withMessage('Query cannot be empty'),
   body('limit').optional().isInt({ min: 1, max: 20 }).withMessage('Limit must be between 1 and 20'),
   body('threshold').optional().isFloat({ min: 0, max: 1 }).withMessage('Threshold must be between 0 and 1'),
+];
+
+// Add these validation rules after the existing validation rules
+const validateInterviewInput = [
+  body('message').trim().notEmpty().withMessage('Message cannot be empty'),
+  body('sessionId').trim().notEmpty().withMessage('Session ID is required'),
+  body('messageHistory').optional().isArray().withMessage('Message history must be an array'),
+  body('useRetrieval').optional().isBoolean().withMessage('useRetrieval must be a boolean'),
 ];
 
 class ApiService {
@@ -793,6 +802,154 @@ class ApiService {
           message: 'Error clearing vector store',
           error: error.message
         });
+      }
+    });
+
+    // Interview Agent endpoint
+    this.app.post('/api/interview', validateInterviewInput, async (req, res, next) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          error: 'Validation error',
+          userMessage: errors.array()[0].msg
+        });
+      }
+
+      try {
+        const { message, sessionId, messageHistory, useRetrieval = true } = req.body;
+        
+        console.log(`[API] /api/interview called with sessionId=${sessionId}, useRetrieval=${useRetrieval}`);
+        
+        // Initialize the Interview Agent if not already done
+        let interviewAgent = agentFactory.getAgent('interview');
+        if (!interviewAgent) {
+          console.log('[API] Initializing Interview Agent');
+          
+          // Create a Retrieval Agent first if needed
+          if (useRetrieval) {
+            console.log('[API] Initializing Retrieval Agent for Interview Agent');
+            agentFactory.createRetrievalAgent(global.llmProvider, {
+              debug: true
+            });
+          }
+          
+          // Create the Interview Agent with Retrieval integration if requested
+          interviewAgent = agentFactory.createInterviewAgent(global.llmProvider, {
+            debug: true,
+            enableStateTracking: true,
+            integrateRetrieval: useRetrieval
+          });
+          
+          console.log('[API] Interview Agent initialized');
+        }
+        
+        // Initialize or update session state
+        if (!this.interviewSessions) {
+          this.interviewSessions = {};
+        }
+        
+        if (!this.interviewSessions[sessionId]) {
+          this.interviewSessions[sessionId] = {
+            messages: [],
+            state: null
+          };
+        }
+        
+        // If message history is provided, use it to sync the server-side history
+        if (messageHistory && Array.isArray(messageHistory)) {
+          console.log(`[API] Received message history from frontend with ${messageHistory.length} messages`);
+          
+          // Only update if the incoming history is longer
+          if (messageHistory.length > this.interviewSessions[sessionId].messages.length) {
+            this.interviewSessions[sessionId].messages = messageHistory;
+          } else {
+            // Add the latest user message if it's not already in the history
+            const latestUserMessage = messageHistory[messageHistory.length - 1];
+            if (latestUserMessage && latestUserMessage.role === 'user') {
+              const existingMessage = this.interviewSessions[sessionId].messages.find(
+                m => m.role === 'user' && m.content === latestUserMessage.content
+              );
+              
+              if (!existingMessage) {
+                this.interviewSessions[sessionId].messages.push(latestUserMessage);
+              }
+            }
+          }
+        } else {
+          // Add the user message to the existing history
+          this.interviewSessions[sessionId].messages.push({
+            role: 'user',
+            content: message
+          });
+        }
+        
+        // Get the current messages
+        const messages = this.interviewSessions[sessionId].messages;
+        
+        // Conduct the interview
+        const response = await interviewAgent.interview(messages, {}, {
+          identifyKnowledgeGaps: useRetrieval
+        });
+        
+        // Add the assistant's response to the history
+        this.interviewSessions[sessionId].messages.push({
+          role: 'assistant',
+          content: response
+        });
+        
+        // Get the updated state
+        this.interviewSessions[sessionId].state = interviewAgent.getState();
+        
+        // Return the response and state
+        res.json({
+          response,
+          state: this.interviewSessions[sessionId].state,
+          messageHistory: this.interviewSessions[sessionId].messages
+        });
+      } catch (error) {
+        console.error('[API] Error in interview endpoint:', error);
+        next(error);
+      }
+    });
+
+    // Get interview state endpoint
+    this.app.get('/api/interview/state/:sessionId', async (req, res, next) => {
+      try {
+        const { sessionId } = req.params;
+        
+        if (!this.interviewSessions || !this.interviewSessions[sessionId]) {
+          return res.status(404).json({
+            error: 'Session not found',
+            userMessage: 'No interview session found with the provided ID'
+          });
+        }
+        
+        res.json({
+          state: this.interviewSessions[sessionId].state,
+          messageHistory: this.interviewSessions[sessionId].messages
+        });
+      } catch (error) {
+        console.error('[API] Error getting interview state:', error);
+        next(error);
+      }
+    });
+
+    // Clear interview session endpoint
+    this.app.post('/api/interview/clear/:sessionId', async (req, res, next) => {
+      try {
+        const { sessionId } = req.params;
+        
+        if (this.interviewSessions && this.interviewSessions[sessionId]) {
+          delete this.interviewSessions[sessionId];
+        }
+        
+        res.json({
+          success: true,
+          message: 'Interview session cleared'
+        });
+      } catch (error) {
+        console.error('[API] Error clearing interview session:', error);
+        next(error);
       }
     });
 

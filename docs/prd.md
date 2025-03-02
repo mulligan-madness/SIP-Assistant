@@ -93,25 +93,32 @@ Automate the retrieval of semantically relevant historical governance data from 
 
 ### 2. Interviewing Agent (Dialogical Process Avatar)
 **Role:**  
-Facilitate a dynamic, iterative dialogue with the user to draw out and develop both implicit and explicit knowledge through focused Socratic questioning.
+Facilitate a dynamic, iterative dialogue with the user to draw out and develop both implicit and explicit knowledge through focused Socratic questioning. The agent helps users clarify their own thinking, makes implicit knowledge explicit, and allows users to correct the model's understanding.
 
 **Functionality:**  
 - **Enhanced Prompting:**  
   - Leverage specialized system prompts that guide the LLM to ask thoughtful, curiosity-driven questions.
-  - Use prompt templates tailored to different proposal types and governance contexts.
-  - Incorporate relevant documents from the Retrieval Agent directly into the conversation context.
+  - Use prompt templates tailored to different proposal types (Treasury Allocation, Governance Process Changes, Parameter Updates, Smart Contract Upgrades).
+  - Incorporate relevant documents from the Retrieval Agent directly into the conversation context to ground questions in established precedents.
 
 - **Minimal State Tracking:**  
   - Track key insights extracted during the conversation without complex state management.
   - Maintain a lightweight list of topics that need further exploration.
-  - Flag contradictions or uncertainties for follow-up questioning.
+  - Flag contradictions or uncertainties in user statements for follow-up questioning.
 
 - **Knowledge & Creativity Development:**  
   - Engage in collaborative dialogue that not only extracts information but helps the user refine and expand on their ideas.
   - Serve as the interactive "face" of the process, making the conversation natural and evolving.
   - Reference relevant governance documents to ground the discussion in established precedents.
+  - Help users develop a deeper understanding of their own proposals through guided questioning.
 
-- **Output:** A set of refined ideas and contextual insights that feed into the drafting process, with clear connections to relevant governance documents.
+- **Retrieval Integration:**
+  - Identify knowledge gaps during the conversation and formulate queries for the Retrieval Agent.
+  - Incorporate retrieved documents into the conversation context to provide factual grounding.
+  - Present relevant precedents to both inform the user and enhance the model's understanding.
+  - Include proper citations when referencing governance documents.
+
+- **Output:** A set of refined ideas and contextual insights that feed into the drafting process, with clear connections to relevant governance documents and a deeper understanding of the user's implicit knowledge.
 
 ### 3. Drafting Agent (Including Iterative Critique)
 **Role:**  

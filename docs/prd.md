@@ -98,7 +98,7 @@ Facilitate a dynamic, iterative dialogue with the user to draw out and develop b
 **Functionality:**  
 - **Enhanced Prompting:**  
   - Leverage specialized system prompts that guide the LLM to ask thoughtful, curiosity-driven questions.
-  - Use prompt templates tailored to different proposal types (Treasury Allocation, Governance Process Changes, Parameter Updates, Smart Contract Upgrades).
+  - Use a single, robust prompt template focused on effective Socratic questioning for all governance proposals.
   - Incorporate relevant documents from the Retrieval Agent directly into the conversation context to ground questions in established precedents.
 
 - **Minimal State Tracking:**  

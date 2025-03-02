@@ -38,29 +38,15 @@ Avoid:
 Maintain a curious, collaborative tone throughout the conversation. Your role is not to judge but to facilitate deeper understanding.
 ```
 
-### Proposal-Specific Prompt Templates
+### Document Integration Approach
 
-Different proposal types require different lines of questioning. Templates will be created for common proposal types:
+When relevant documents are retrieved, they will be incorporated into the conversation context with a simple format:
 
-1. **Treasury Allocation Proposals**:
-   - Focus on budget justification, success metrics, and precedents
-   - Explore risk mitigation strategies
-   - Question sustainability and long-term impact
-
-2. **Governance Process Changes**:
-   - Examine implications for participation and decentralization
-   - Question transition plans and backward compatibility
-   - Explore potential unintended consequences
-
-3. **Parameter Updates**:
-   - Focus on data-driven justification
-   - Question impact on different stakeholder groups
-   - Explore alternative parameter values
-
-4. **Smart Contract Upgrades**:
-   - Focus on security considerations
-   - Question testing procedures and audit results
-   - Explore fallback mechanisms
+```
+Relevant governance context:
+[Document 1 Title] (Date): Key excerpt from the document...
+[Document 2 Title] (Date): Key excerpt from the document...
+```
 
 ## Minimal State Tracking
 
@@ -98,7 +84,7 @@ The Interview Agent will integrate with the Retrieval Agent to access relevant g
 
 ## Example Dialogue Flows
 
-### Example 1: Treasury Allocation Proposal
+### Example: Governance Proposal Discussion
 
 **User**: "I want to create a proposal for allocating 100,000 tokens to ecosystem development."
 
@@ -113,26 +99,11 @@ The Interview Agent will integrate with the Retrieval Agent to access relevant g
 
 **Interview Agent**: "That helps clarify the distribution. What specific outcomes or deliverables would signal success for this allocation? How would the community measure whether this investment achieved its goals?"
 
-### Example 2: Governance Process Change
-
-**User**: "I want to propose reducing the voting period from 7 days to 3 days."
-
-**Interview Agent**: "Interesting proposal. What problem or opportunity are you trying to address by shortening the voting period?"
-
-**User**: "Decisions take too long, and we lose momentum on time-sensitive opportunities."
-
-**Interview Agent**: [Calls Retrieval Agent for relevant precedents]
-"I understand the concern about decision velocity. The current 7-day period was established in SIP-12, which emphasized giving part-time community members enough time to participate. Have you considered how reducing the voting period might affect participation from different community segments?"
-
-**User**: "I hadn't thought about part-time members specifically."
-
-**Interview Agent**: "That's an important consideration. Could you share some examples of recent time-sensitive opportunities that were impacted by the current voting timeline? This would help contextualize the urgency behind your proposal."
-
 ## Implementation Approach
 
 The Interview Agent implementation will focus on simplicity and effectiveness:
 
-1. **Enhanced Prompting**: Implement the core system prompt and proposal-specific templates
+1. **Enhanced Prompting**: Implement the core system prompt with a focus on Socratic questioning
 2. **Minimal State**: Create a lightweight state tracking mechanism
 3. **Retrieval Integration**: Implement simple methods for the Interview Agent to request relevant documents
 4. **UI Indicators**: Add minimal UI enhancements to indicate when the system is in interview mode

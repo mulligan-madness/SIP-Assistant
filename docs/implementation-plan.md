@@ -589,18 +589,18 @@ This minimal approach validates the core value proposition while deferring more 
 - **Commit Point:** After completing the design and documentation
 
 ### Task 2: Implement Enhanced Prompting
-- **Description:** Create specialized prompts for effective interviewing using Socratic techniques
+- **Description:** Create a specialized prompt for effective interviewing using Socratic techniques
 - **Steps:**
   1. Develop a core Socratic questioning prompt focused on extracting implicit knowledge
-  2. Create specialized prompts for different proposal types (Treasury, Governance, Parameters, Smart Contracts)
-  3. Add prompts for incorporating retrieved documents as contextual references
-  4. Implement prompt templates with variable substitution for dynamic content
+  2. Create a simple mechanism for incorporating document references into the prompt
+  3. Implement a basic template with variable substitution for dynamic content
+  4. Keep the implementation focused on a single, effective prompt template
 - **Testing Criteria:**
-  - Prompts effectively guide the LLM to ask insightful, open-ended questions
-  - Different proposal types have appropriate specialized prompts
+  - Prompt effectively guides the LLM to ask insightful, open-ended questions
   - Document references are naturally incorporated with proper citations
   - Questions help users clarify their own thinking
-- **Commit Point:** After prompts are implemented and tested
+  - Template supports basic variable substitution for dynamic content
+- **Commit Point:** After prompt is implemented and tested
 
 ### Task 3: Implement Minimal State Tracking
 - **Description:** Create a lightweight system for tracking interview progress and insights

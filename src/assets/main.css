@@ -15,6 +15,8 @@
   --disabled-text: #666;
   --code-background: #2c2c2c;
   --shadow-color: rgba(0, 0, 0, 0.2);
+  --link-color: #a2c4ff;
+  --link-hover-color: #c9ddff;
 
   /* Button theme */
   --button-primary: #7c5ddf;
@@ -123,6 +125,23 @@ button:focus-visible {
   }
 }
 
+/* Global hyperlink styles */
+a {
+  color: var(--link-color);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--link-hover-color);
+}
+
+a:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
 /* Markdown styles */
 .markdown-content h1,
 .markdown-content h2,
@@ -143,6 +162,12 @@ button:focus-visible {
 .markdown-content ol {
   margin: 0.5em 0;
   padding-left: 1.5em;
+}
+
+/* Hyperlink styles for markdown content - inherits from global but can be customized */
+.markdown-content a {
+  /* Inherits from global a styles */
+  font-weight: 500; /* Make links slightly bolder in markdown content */
 }
 
 .markdown-content code {

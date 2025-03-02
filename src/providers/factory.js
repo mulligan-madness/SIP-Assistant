@@ -3,7 +3,6 @@ const { AnthropicProvider } = require('./anthropic');
 
 // Import agent providers
 const { RetrievalAgentProvider } = require('./agents/retrieval');
-const { ResearchAgentProvider } = require('./agents/research');
 const { InterviewAgentProvider } = require('./agents/interview');
 const { DraftingAgentProvider } = require('./agents/drafting');
 
@@ -74,7 +73,7 @@ class LLMProviderFactory {
 
   /**
    * Creates an agent-specific provider
-   * @param {string} type - The agent type (e.g., 'retrieval', 'research')
+   * @param {string} type - The agent type (e.g., 'retrieval', 'interview')
    * @param {BaseLLMProvider} llmProvider - The underlying LLM provider to use
    * @param {Object} config - Configuration for the agent
    * @returns {BaseLLMProvider} - An agent provider instance
@@ -97,11 +96,6 @@ class LLMProviderFactory {
         console.log(`[PROVIDER] Created RetrievalAgentProvider`);
         return new RetrievalAgentProvider(llmProvider, config);
         
-      case 'research':
-      case 'researchagent':
-        console.log(`[PROVIDER] Created ResearchAgentProvider`);
-        return new ResearchAgentProvider(llmProvider, config);
-        
       case 'interview':
       case 'interviewagent':
         console.log(`[PROVIDER] Created InterviewAgentProvider`);
@@ -120,7 +114,7 @@ class LLMProviderFactory {
 
   /**
    * Gets a provider that supports a specific capability
-   * @param {string} capability - The capability needed ('retrieve', 'research', 'interview', 'draft')
+   * @param {string} capability - The capability needed ('retrieve', 'interview', 'draft')
    * @param {BaseLLMProvider} llmProvider - The underlying LLM provider to use
    * @param {Object} config - Configuration for the provider
    * @returns {BaseLLMProvider} - A provider that supports the requested capability
@@ -129,7 +123,6 @@ class LLMProviderFactory {
     // Map capabilities to appropriate agent types
     const capabilityMap = {
       'retrieve': 'retrieval',
-      'research': 'research',
       'interview': 'interview',
       'draft': 'drafting'
     };

@@ -20,17 +20,6 @@ class BaseLLMProvider {
   }
 
   /**
-   * Research agent capability - analyzes documents to extract insights
-   * @param {Array} documents - Documents to analyze
-   * @param {string} topic - The research topic
-   * @param {Object} options - Additional options for research
-   * @returns {Promise<Object>} - Research report with findings
-   */
-  async research(documents, topic, options = {}) {
-    throw new Error('Research capability not implemented');
-  }
-
-  /**
    * Interview agent capability - conducts interactive dialogues
    * @param {Array} messages - The conversation history
    * @param {Object} context - Additional context for the interview
@@ -55,7 +44,7 @@ class BaseLLMProvider {
 
   /**
    * Check if this provider supports a specific agent capability
-   * @param {string} capability - The capability to check ('retrieve', 'research', 'interview', 'draft')
+   * @param {string} capability - The capability to check ('retrieve', 'interview', 'draft')
    * @returns {boolean} - Whether the capability is supported
    */
   supportsCapability(capability) {

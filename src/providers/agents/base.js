@@ -1,22 +1,29 @@
 const { BaseLLMProvider } = require('../base');
+const { createLLMProviderError } = require('../../utils');
 
 /**
  * Base Agent Provider
  * Abstract base class for all agent providers
- */
-
-/**
- * Base class for all agent providers
+ * @abstract
  */
 class BaseAgentProvider {
   /**
    * Create a new agent provider
-   * @param {Object} llmProvider - The underlying LLM provider
+   * @param {BaseLLMProvider} llmProvider - The underlying LLM provider
    * @param {Object} config - Configuration for the agent
    */
   constructor(llmProvider, config = {}) {
     if (!llmProvider) {
-      throw new Error('LLM provider is required');
+      throw createLLMProviderError('LLM provider is required for agent', 'agent');
+    }
+    
+    if (!(llmProvider instanceof BaseLLMProvider)) {
+      throw createLLMProviderError('Provider must be an instance of BaseLLMProvider', 'agent');
+    }
+    
+    // Validate that this is not being instantiated directly
+    if (this.constructor === BaseAgentProvider) {
+      throw createLLMProviderError('BaseAgentProvider is an abstract class and cannot be instantiated directly', 'agent');
     }
     
     this.llmProvider = llmProvider;
@@ -29,6 +36,9 @@ class BaseAgentProvider {
     
     // Track operation history for debugging and analysis
     this.operationHistory = [];
+    
+    // Set agent name
+    this.name = 'base-agent';
   }
 
   /**
@@ -39,7 +49,7 @@ class BaseAgentProvider {
    */
   _logOperation(operation, data = {}) {
     if (this.debug) {
-      console.log(`[AGENT] ${operation}:`, JSON.stringify(data, null, 2));
+      console.log(`[AGENT:${this.name}] ${operation}:`, JSON.stringify(data, null, 2));
     }
   }
 
@@ -75,16 +85,35 @@ class BaseAgentProvider {
    * @returns {Promise<string>} - The chat response
    */
   async chat(messages, options = {}) {
-    return this.llmProvider.chat(messages, options);
+    this._logOperation('chat', { messageCount: messages.length });
+    
+    // Merge options with defaults
+    const mergedOptions = {
+      systemPrompt: this.systemPrompt,
+      temperature: this.temperature,
+      ...options
+    };
+    
+    return this.llmProvider.chat(messages, mergedOptions);
   }
 
   /**
    * Delegate the complete method to the underlying LLM provider
    * @param {string} prompt - The prompt to complete
+   * @param {Object} options - Additional options
    * @returns {Promise<string>} - The completion
    */
-  async complete(prompt) {
-    return this.llmProvider.complete(prompt);
+  async complete(prompt, options = {}) {
+    this._logOperation('complete', { promptLength: prompt.length });
+    
+    // Merge options with defaults
+    const mergedOptions = {
+      systemPrompt: this.systemPrompt,
+      temperature: this.temperature,
+      ...options
+    };
+    
+    return this.llmProvider.complete(prompt, mergedOptions);
   }
 
   /**

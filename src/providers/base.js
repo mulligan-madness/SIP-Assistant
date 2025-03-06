@@ -1,10 +1,73 @@
+/**
+ * Base LLM Provider
+ * Abstract base class for all LLM providers (OpenAI, Anthropic, etc.)
+ */
+
+/**
+ * Base class for all LLM providers
+ * @abstract
+ */
 class BaseLLMProvider {
-  async complete(prompt) {
+  /**
+   * Create a new LLM provider
+   * @param {Object} config - Provider configuration
+   */
+  constructor(config = {}) {
+    this.config = config;
+    this.name = 'base';
+    
+    // Validate that this is not being instantiated directly
+    if (this.constructor === BaseLLMProvider) {
+      throw new Error('BaseLLMProvider is an abstract class and cannot be instantiated directly');
+    }
+  }
+
+  /**
+   * Complete a prompt with the LLM
+   * @param {string} prompt - The prompt to complete
+   * @param {Object} options - Additional options for completion
+   * @returns {Promise<string>} - The completion result
+   * @abstract
+   */
+  async complete(prompt, options = {}) {
     throw new Error('Method not implemented');
   }
 
-  async chat(messages) {
+  /**
+   * Chat with the LLM using a message array
+   * @param {Array} messages - Array of message objects with role and content
+   * @param {Object} options - Additional options for chat
+   * @returns {Promise<Object>} - The chat response
+   * @abstract
+   */
+  async chat(messages, options = {}) {
     throw new Error('Method not implemented');
+  }
+
+  /**
+   * Get the name of this provider
+   * @returns {string} - The provider name
+   */
+  getProviderName() {
+    return this.name;
+  }
+
+  /**
+   * Check if this provider supports a specific capability
+   * @param {string} capability - The capability to check ('retrieve', 'interview', 'draft')
+   * @returns {boolean} - Whether the capability is supported
+   */
+  supportsCapability(capability) {
+    return false; // Base implementation doesn't support any capabilities
+  }
+
+  /**
+   * Get a capability implementation if supported
+   * @param {string} capability - The capability to get
+   * @returns {Function|null} - The capability implementation or null if not supported
+   */
+  getCapability(capability) {
+    return null; // Base implementation doesn't provide any capabilities
   }
 
   // Agent capability methods with default implementations
@@ -40,15 +103,6 @@ class BaseLLMProvider {
    */
   async draft(research, insights, template, options = {}) {
     throw new Error('Drafting capability not implemented');
-  }
-
-  /**
-   * Check if this provider supports a specific agent capability
-   * @param {string} capability - The capability to check ('retrieve', 'interview', 'draft')
-   * @returns {boolean} - Whether the capability is supported
-   */
-  supportsCapability(capability) {
-    return false; // Base implementation doesn't support any capabilities
   }
 }
 

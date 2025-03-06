@@ -136,6 +136,7 @@
 import { defineProps, defineEmits, ref, reactive, onMounted } from 'vue';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { formatDate } from '../../utils';
 
 // Define props
 const props = defineProps({
@@ -335,17 +336,6 @@ const referenceDocument = (doc) => {
     text: doc.text,
     citation: generateCitation(doc)
   });
-};
-
-const formatDate = (dateString) => {
-  if (!dateString) return 'No date';
-  
-  try {
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
-  } catch (e) {
-    return dateString;
-  }
 };
 
 const generateCitation = (doc) => {

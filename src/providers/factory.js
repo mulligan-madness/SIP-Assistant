@@ -1,12 +1,22 @@
 const { OpenAIProvider } = require('./openai');
 const { AnthropicProvider } = require('./anthropic');
+const { createLLMProviderError } = require('../utils');
 
 // Import agent providers
 const { RetrievalAgentProvider } = require('./agents/retrievalAgentProvider');
 const { InterviewAgentProvider } = require('./agents/interviewAgentProvider');
 const { DraftingAgentProvider } = require('./agents/draftingAgentProvider');
 
+/**
+ * Factory for creating LLM providers
+ */
 class LLMProviderFactory {
+  /**
+   * Validate provider configuration
+   * @param {string} type - Provider type
+   * @param {Object} config - Provider configuration
+   * @throws {Error} If configuration is invalid
+   */
   static validateConfig(type, config) {
     // Check if this is an agent provider type
     if (type.toLowerCase().includes('agent')) {
@@ -23,24 +33,40 @@ class LLMProviderFactory {
     switch (type.toLowerCase()) {
       case 'openai':
         if (!config.apiKey && !process.env.OPENAI_API_KEY) {
-          throw new Error('apiKey is required for OpenAI provider (set in config or OPENAI_API_KEY env var)');
+          throw createLLMProviderError(
+            'apiKey is required for OpenAI provider (set in config or OPENAI_API_KEY env var)',
+            'openai'
+          );
         }
         break;
       case 'anthropic':
         if (!config.apiKey && !process.env.ANTHROPIC_API_KEY) {
-          throw new Error('apiKey is required for Anthropic provider (set in config or ANTHROPIC_API_KEY env var)');
+          throw createLLMProviderError(
+            'apiKey is required for Anthropic provider (set in config or ANTHROPIC_API_KEY env var)',
+            'anthropic'
+          );
         }
         break;
-      // Agent provider validation will be added here as we implement each agent
       default:
-        throw new Error(`Unknown provider type: ${type}`);
+        throw createLLMProviderError(`Unknown provider type: ${type}`, type);
     }
   }
 
+  /**
+   * Create a provider instance
+   * @param {string} type - Provider type
+   * @param {Object} config - Provider configuration
+   * @returns {BaseLLMProvider} Provider instance
+   */
   static createProvider(type, config = {}) {
     console.log(`[PROVIDER] Creating provider of type: ${type}`);
-    console.log(`[PROVIDER] Provider config:`, JSON.stringify(config, (key, value) => 
-      key === 'apiKey' ? '[REDACTED]' : value, 2));
+    
+    // Redact API keys for logging
+    const safeConfig = JSON.parse(JSON.stringify(config));
+    if (safeConfig.apiKey) safeConfig.apiKey = '[REDACTED]';
+    if (safeConfig.llmConfig?.apiKey) safeConfig.llmConfig.apiKey = '[REDACTED]';
+    
+    console.log(`[PROVIDER] Provider config:`, JSON.stringify(safeConfig, null, 2));
     
     this.validateConfig(type, config);
     const finalConfig = { ...config };
@@ -48,92 +74,47 @@ class LLMProviderFactory {
     // Check if this is an agent provider request
     if (type.toLowerCase().includes('agent')) {
       console.log(`[PROVIDER] Creating agent provider: ${type}`);
-      return this.createAgentProvider(type, finalConfig);
+      return this._createAgentProvider(type, finalConfig);
     }
 
-    // Standard provider creation
+    // Create the appropriate provider
     switch (type.toLowerCase()) {
       case 'openai':
-        finalConfig.apiKey = config.apiKey || process.env.OPENAI_API_KEY;
-        finalConfig.model = config.model || process.env.OPENAI_MODEL;
-        console.log(`[PROVIDER] Created OpenAIProvider with model: ${finalConfig.model}`);
         return new OpenAIProvider(finalConfig);
-        
       case 'anthropic':
-        finalConfig.apiKey = config.apiKey || process.env.ANTHROPIC_API_KEY;
-        finalConfig.model = config.model || process.env.ANTHROPIC_MODEL;
-        console.log(`[PROVIDER] Created AnthropicProvider with model: ${finalConfig.model}`);
         return new AnthropicProvider(finalConfig);
-        
       default:
-        console.error(`[PROVIDER] Unknown provider type: ${type}`);
-        throw new Error(`Unknown provider type: ${type}`);
+        throw createLLMProviderError(`Unknown provider type: ${type}`, type);
     }
   }
 
   /**
-   * Creates an agent-specific provider
-   * @param {string} type - The agent type (e.g., 'retrieval', 'interview')
-   * @param {BaseLLMProvider} llmProvider - The underlying LLM provider to use
-   * @param {Object} config - Configuration for the agent
-   * @returns {BaseLLMProvider} - An agent provider instance
+   * Create an agent provider
+   * @param {string} type - Agent provider type
+   * @param {Object} config - Agent provider configuration
+   * @returns {BaseAgentProvider} Agent provider instance
+   * @private
    */
-  static createAgentProvider(type, llmProvider, config = {}) {
-    console.log(`[PROVIDER] Creating agent provider: ${type}`);
-    
-    // If llmProvider is a config object instead of a provider instance,
-    // create the provider first
-    if (typeof llmProvider === 'object' && !llmProvider.complete && !llmProvider.chat) {
-      const llmType = llmProvider.provider || 'openai';
-      const llmConfig = llmProvider.config || {};
-      llmProvider = this.createProvider(llmType, llmConfig);
-    }
+  static _createAgentProvider(type, config) {
+    // Create the underlying LLM provider
+    const llmType = config.llmProvider || 'openai';
+    const llmConfig = config.llmConfig || {};
+    const llmProvider = this.createProvider(llmType, llmConfig);
     
     // Create the appropriate agent provider
     switch (type.toLowerCase()) {
-      case 'retrieval':
+      case 'retrieval-agent':
       case 'retrievalagent':
-        console.log(`[PROVIDER] Created RetrievalAgentProvider`);
         return new RetrievalAgentProvider(llmProvider, config);
-        
-      case 'interview':
+      case 'interview-agent':
       case 'interviewagent':
-        console.log(`[PROVIDER] Created InterviewAgentProvider`);
         return new InterviewAgentProvider(llmProvider, config);
-        
-      case 'drafting':
+      case 'drafting-agent':
       case 'draftingagent':
-        console.log(`[PROVIDER] Created DraftingAgentProvider`);
         return new DraftingAgentProvider(llmProvider, config);
-        
       default:
-        console.error(`[PROVIDER] Unknown agent type: ${type}`);
-        throw new Error(`Unknown agent type: ${type}`);
+        throw createLLMProviderError(`Unknown agent provider type: ${type}`, 'agent');
     }
-  }
-
-  /**
-   * Gets a provider that supports a specific capability
-   * @param {string} capability - The capability needed ('retrieve', 'interview', 'draft')
-   * @param {BaseLLMProvider} llmProvider - The underlying LLM provider to use
-   * @param {Object} config - Configuration for the provider
-   * @returns {BaseLLMProvider} - A provider that supports the requested capability
-   */
-  static getProviderWithCapability(capability, llmProvider, config = {}) {
-    // Map capabilities to appropriate agent types
-    const capabilityMap = {
-      'retrieve': 'retrieval',
-      'interview': 'interview',
-      'draft': 'drafting'
-    };
-    
-    const agentType = capabilityMap[capability];
-    if (!agentType) {
-      console.error(`[PROVIDER] Unknown capability: ${capability}`);
-      throw new Error(`Unknown capability: ${capability}`);
-    }
-    
-    return this.createAgentProvider(agentType, llmProvider, config);
   }
 }
 

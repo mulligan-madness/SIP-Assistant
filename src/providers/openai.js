@@ -1,13 +1,25 @@
 const { BaseLLMProvider } = require('./base');
 const { OpenAI } = require('openai');
-const debug = require('debug')('chatbot:openai');
+const { createLLMProviderError, createNetworkError } = require('../utils');
 
 /**
  * OpenAI Provider for language model interactions
+ * @extends BaseLLMProvider
  */
 class OpenAIProvider extends BaseLLMProvider {
+  /**
+   * Create a new OpenAI provider
+   * @param {Object} config - Provider configuration
+   * @param {string} config.apiKey - OpenAI API key
+   * @param {string} config.model - OpenAI model to use
+   * @param {number} config.temperature - Temperature for generation
+   * @param {string} config.systemPrompt - Default system prompt
+   */
   constructor(config = {}) {
     super(config);
+    
+    // Set provider name
+    this.name = 'openai';
     
     // Extract OpenAI specific config
     this.apiKey = config.apiKey || process.env.OPENAI_API_KEY;
@@ -84,39 +96,77 @@ class OpenAIProvider extends BaseLLMProvider {
         this._debugLog(`Response preview: ${preview}`);
         return responseText;
       } else {
-        throw new Error('Unexpected response format from OpenAI API');
+        throw createLLMProviderError(
+          'Unexpected response format from OpenAI API',
+          'openai'
+        );
       }
     } catch (error) {
       console.error('[OPENAI] Error in chat request:', error);
-      throw new Error(`OpenAI API Error: ${error.message}`);
+      
+      // Check if it's a network error
+      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
+        throw createNetworkError(`OpenAI API network error: ${error.message}`, error);
+      }
+      
+      throw createLLMProviderError(
+        `OpenAI API Error: ${error.message}`,
+        'openai',
+        error
+      );
     }
   }
 
   /**
    * Complete a prompt with the OpenAI API
    * @param {string} prompt - The prompt to complete
+   * @param {Object} options - Additional options
    * @returns {Promise<string>} - The model's completion
    */
-  async complete(prompt) {
+  async complete(prompt, options = {}) {
     try {
       this._debugLog(`Making completion request with prompt: ${prompt.substring(0, 50)}...`);
       
+      const temperature = options.temperature !== undefined ? options.temperature : this.temperature;
+      const systemPrompt = options.systemPrompt || this.systemPrompt;
+      
       // Format as a chat message for gpt-3.5-turbo and gpt-4
       const messages = [
-        { role: 'system', content: this.systemPrompt },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt }
       ];
       
       const response = await this.client.chat.completions.create({
         model: this.model,
-        messages: messages
+        messages: messages,
+        temperature: temperature
       });
       
       return response.choices[0].message.content;
     } catch (error) {
       console.error('[OPENAI] Error in completion request:', error);
-      throw new Error(`OpenAI API Error: ${error.message}`);
+      
+      // Check if it's a network error
+      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
+        throw createNetworkError(`OpenAI API network error: ${error.message}`, error);
+      }
+      
+      throw createLLMProviderError(
+        `OpenAI API Error: ${error.message}`,
+        'openai',
+        error
+      );
     }
+  }
+  
+  /**
+   * Check if this provider supports a specific capability
+   * @param {string} capability - The capability to check
+   * @returns {boolean} - Whether the capability is supported
+   */
+  supportsCapability(capability) {
+    // OpenAI supports all basic capabilities
+    return ['chat', 'complete'].includes(capability);
   }
 }
 

@@ -1,9 +1,9 @@
 const { LLMProviderFactory } = require('../../src/providers/factory');
 const { BaseLLMProvider } = require('../../src/providers/base');
 const { BaseAgentProvider } = require('../../src/providers/agents/base');
-const { RetrievalAgentProvider } = require('../../src/providers/agents/retrieval');
-const { InterviewAgentProvider } = require('../../src/providers/agents/interview');
-const { DraftingAgentProvider } = require('../../src/providers/agents/drafting');
+const { RetrievalAgentProvider } = require('../../src/providers/agents/retrievalAgentProvider');
+const { InterviewAgentProvider } = require('../../src/providers/agents/interviewAgentProvider');
+const { DraftingAgentProvider } = require('../../src/providers/agents/draftingAgentProvider');
 
 // Set test environment
 process.env.NODE_ENV = 'test';

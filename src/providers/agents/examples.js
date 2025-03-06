@@ -9,65 +9,66 @@
 const { LLMProviderFactory } = require('../factory');
 
 /**
- * Example: Creating and using a Retrieval Agent
+ * Example using the Retrieval Agent
  */
 async function retrievalAgentExample() {
-  // Create a retrieval agent with OpenAI as the underlying provider
-  const retrievalAgent = LLMProviderFactory.createProvider('retrievalAgent', {
+  // Create a retrieval agent using the factory
+  const retrievalAgent = LLMProviderFactory.createProvider('retrievalAgentProvider', {
     llmProvider: 'openai',
     llmConfig: {
-      model: 'gpt-4',
-      temperature: 0.2 // Lower temperature for more focused retrieval
+      model: 'gpt-4'
     }
   });
   
-  // Use the retrieval capability
-  try {
-    const results = await retrievalAgent.retrieve('governance proposal standards', {
-      limit: 5,
-      minRelevance: 0.75
-    });
-    
-    console.log('Retrieved documents:', results);
-  } catch (error) {
-    console.error('Retrieval not yet implemented:', error.message);
-  }
+  // Use the agent to retrieve relevant documents
+  const query = 'What are the best practices for DAO governance?';
+  const documents = await retrievalAgent.retrieve(query);
+  
+  // Process the results
+  console.log(`Found ${documents.length} documents about "${query}"`);
+  documents.forEach((doc, i) => {
+    console.log(`Document ${i+1}: ${doc.title}`);
+    console.log(`Content: ${doc.text.substring(0, 100)}...`);
+  });
 }
 
 /**
- * Example: Creating and using an Interview Agent
+ * Example using the Interview Agent
  */
 async function interviewAgentExample() {
-  // Create an interview agent
-  const interviewAgent = LLMProviderFactory.createProvider('interviewAgent', {
-    temperature: 0.8 // Higher temperature for more creative questions
+  // Create an interview agent using the factory
+  const interviewAgent = LLMProviderFactory.createProvider('interviewAgentProvider', {
+    llmProvider: 'openai',
+    llmConfig: {
+      model: 'gpt-4'
+    }
   });
   
-  // Sample conversation history
+  // Example conversation
   const messages = [
     { role: 'user', content: 'I want to create a governance proposal for my DAO.' },
-    { role: 'assistant', content: 'That sounds interesting! What kind of DAO are you working with?' },
-    { role: 'user', content: 'It\'s a DeFi protocol DAO with about 500 token holders.' }
+    { role: 'assistant', content: 'That sounds interesting! What specific aspect of governance are you looking to address?' },
+    { role: 'user', content: 'I think we need better treasury management.' }
   ];
   
-  // Additional context for the interview
+  // Additional context (optional)
   const context = {
-    topic: 'DAO Governance',
-    userBackground: 'DeFi protocol founder',
-    previousProposals: ['Treasury allocation', 'Protocol upgrade']
+    documents: [
+      { title: 'Treasury Management Guide', content: 'Best practices for DAO treasury management...' }
+    ]
   };
   
   // Use the interview capability
-  try {
-    const response = await interviewAgent.interview(messages, context, {
-      questionCount: 3,
-      focusArea: 'proposal structure'
-    });
-    
-    console.log('Interview response:', response);
-  } catch (error) {
-    console.error('Interview not yet implemented:', error.message);
-  }
+  const response = await interviewAgent.interview(messages, context, {
+    identifyKnowledgeGaps: true
+  });
+  
+  // Process the response
+  console.log('Interview Agent Response:', response);
+  
+  // Get insights from the conversation
+  const insights = interviewAgent.getInsights();
+  console.log(`Extracted ${insights.length} insights from the conversation`);
 }
 
 /**
@@ -128,11 +129,13 @@ async function capabilityExample() {
   console.log('Provider type:', provider.constructor.name);
 }
 
-// These examples would be run in a real application
-// retrievalAgentExample();
-// interviewAgentExample();
-// draftingAgentExample();
-// capabilityExample();
+// Example usage
+async function runExamples() {
+  await retrievalAgentExample();
+  await interviewAgentExample();
+}
+
+runExamples().catch(console.error);
 
 module.exports = {
   retrievalAgentExample,

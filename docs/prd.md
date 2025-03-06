@@ -104,7 +104,7 @@ Facilitate a dynamic, iterative dialogue with the user to draw out and develop b
 - **Minimal State Tracking:**  
   - Track key insights extracted during the conversation without complex state management.
   - Maintain a lightweight list of topics that need further exploration.
-  - Flag contradictions or uncertainties in user statements for follow-up questioning.
+  - Focus on essential information only, avoiding complex state mechanisms.
 
 - **Knowledge & Creativity Development:**  
   - Engage in collaborative dialogue that not only extracts information but helps the user refine and expand on their ideas.
@@ -112,11 +112,11 @@ Facilitate a dynamic, iterative dialogue with the user to draw out and develop b
   - Reference relevant governance documents to ground the discussion in established precedents.
   - Help users develop a deeper understanding of their own proposals through guided questioning.
 
-- **Retrieval Integration:**
-  - Identify knowledge gaps during the conversation and formulate queries for the Retrieval Agent.
-  - Incorporate retrieved documents into the conversation context to provide factual grounding.
-  - Present relevant precedents to both inform the user and enhance the model's understanding.
-  - Include proper citations when referencing governance documents.
+- **Direct Document Retrieval:**
+  - Directly search for relevant documents based on the user's explicit queries.
+  - Use multiple fallback strategies to improve retrieval success when direct queries fail.
+  - Present documents with proper citations to provide factual grounding for the conversation.
+  - Maintain simple, direct integration with the Retrieval Agent focused on reliability.
 
 - **Output:** A set of refined ideas and contextual insights that feed into the drafting process, with clear connections to relevant governance documents and a deeper understanding of the user's implicit knowledge.
 
@@ -153,6 +153,20 @@ Build for speed and learning, not premature scaling. The implementation will pri
 - Leverage existing provider abstractions rather than creating new ones
 - Keep the system monolithic initially for simplicity and speed
 - Avoid implementing complex state management until necessary
+
+### MVP Philosophy: Start Simple, Get Working
+
+The implementation will follow a strict MVP approach:
+
+- **Remove Complexity:** Intentionally remove features that add complexity but don't provide immediate core value
+- **Focus on Reliability:** Ensure basic functionality works reliably before adding sophisticated features
+- **Direct Integration:** Use straightforward, direct integration between components
+- **Visible Logging:** Implement detailed logging to provide visibility into system behavior
+- **Empirical Evolution:** Add complexity only after real-world testing proves it's necessary
+- **Fallback Strategies:** Implement simple fallback mechanisms for when primary approaches fail
+- **User-Driven:** Let actual user feedback drive feature prioritization
+
+This approach prioritizes getting a working system that delivers value quickly, rather than a sophisticated system that takes longer to develop and debug. Features like knowledge gap identification will be considered for future versions after the core functionality is proven.
 
 ---
 
@@ -215,24 +229,27 @@ Build for speed and learning, not premature scaling. The implementation will pri
 
 ### Phase 2: Research & Analysis
 - **Backend:**
-  - Implement the Interviewing Agent capability
+  - Implement the simplified Interviewing Agent capability
   - Connect the Retrieval Agent to the vector database
+  - Focus on direct document retrieval without complex knowledge gap analysis
 - **Frontend:**
   - Add research visualization components
   - Implement UI for navigating research reports
+  - Create a simple mode toggle for Interview mode
 
 ### Phase 3: Interactive Interview & Drafting
 - **Backend:**
-  - Implement the Interviewing Agent capability
+  - Optimize the Interviewing Agent based on user feedback
   - Create the Drafting Agent
   - Add proposal templates and validation
 - **Frontend:**
-  - Create an interviewing interface
+  - Create a basic interviewing interface with clear mode indication
   - Build a drafting workspace UI
-  - Add real-time feedback visualization
+  - Add basic document reference display
 - **User Testing:**
-  - Conduct comprehensive user testing
-  - Iterate based on feedback
+  - Conduct targeted user testing on the simplified implementation
+  - Gather feedback on the direct retrieval approach
+  - Iterate based on real user needs rather than complex assumptions
 
 ### Phase 4: Optimization & Scaling (If Needed)
 - Extract high-load components to separate services if performance indicates it's necessary

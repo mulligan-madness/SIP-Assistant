@@ -1,6 +1,34 @@
-# Agent Provider Framework
+# Agents Directory
 
-This directory contains the implementation of specialized agent providers that extend the base LLM provider functionality with specific capabilities.
+This directory contains specialized agent provider implementations that extend the base LLM provider with specific capabilities.
+
+## File Naming Convention
+
+Agent implementation files follow the naming convention `<agentType>AgentProvider.js` to clearly indicate:
+1. Which agent capability they implement
+2. That they are provider implementations, not prompt templates
+
+## Current Directories
+
+- `prompts/` - Contains prompt templates and utilities used by the agent providers
+- `state/` - Contains state tracking classes for maintaining context across interactions
+
+## Current Files
+
+### Agent Providers
+- `interviewAgentProvider.js` - Implementation of the Interview Agent for Socratic questioning
+- `retrievalAgentProvider.js` - Implementation of the Retrieval Agent for finding relevant documents
+- `draftingAgentProvider.js` - Implementation of the Drafting Agent for generating structured content
+
+### Prompt Templates
+- `prompts/interviewPromptTemplates.js` - Templates and utilities for the Interview Agent
+
+## Best Practices
+
+- Keep agent implementation separate from prompt templates
+- Use clear naming conventions to avoid confusion
+- Implement a consistent interface across all agent providers
+- Include detailed logging for debugging agent interactions
 
 ## Architecture
 

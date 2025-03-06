@@ -807,16 +807,17 @@ class ApiService {
 
     // Interview Agent endpoint
     this.app.post('/api/interview', validateInterviewInput, async (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          error: 'Validation error',
-          userMessage: errors.array()[0].msg
-        });
-      }
-
       try {
-        const { message, sessionId, messageHistory, useRetrieval = true } = req.body;
+        // Validate that the LLM is initialized
+        if (!global.llmProvider) {
+          return res.status(400).json({
+            error: 'LLM provider not initialized',
+            message: 'Please initialize the LLM provider first.'
+          });
+        }
+
+        // Extract parameters from request
+        const { message, sessionId, messageHistory = [], useRetrieval = true } = req.body;
         
         console.log(`[API] /api/interview called with sessionId=${sessionId}, useRetrieval=${useRetrieval}`);
         
@@ -833,7 +834,7 @@ class ApiService {
             });
           }
           
-          // Create the Interview Agent with Retrieval integration if requested
+          // Create the Interview Agent with Retrieval integration
           interviewAgent = agentFactory.createInterviewAgent(global.llmProvider, {
             debug: true,
             enableStateTracking: true,
@@ -855,57 +856,61 @@ class ApiService {
           };
         }
         
-        // If message history is provided, use it to sync the server-side history
-        if (messageHistory && Array.isArray(messageHistory)) {
-          console.log(`[API] Received message history from frontend with ${messageHistory.length} messages`);
-          
-          // Only update if the incoming history is longer
-          if (messageHistory.length > this.interviewSessions[sessionId].messages.length) {
-            this.interviewSessions[sessionId].messages = messageHistory;
-          } else {
-            // Add the latest user message if it's not already in the history
-            const latestUserMessage = messageHistory[messageHistory.length - 1];
-            if (latestUserMessage && latestUserMessage.role === 'user') {
-              const existingMessage = this.interviewSessions[sessionId].messages.find(
-                m => m.role === 'user' && m.content === latestUserMessage.content
-              );
-              
-              if (!existingMessage) {
-                this.interviewSessions[sessionId].messages.push(latestUserMessage);
-              }
+        // Use message history from frontend if provided and longer than our history
+        if (messageHistory && Array.isArray(messageHistory) && messageHistory.length > 0) {
+          // If the frontend history is newer or longer, use it
+          if (messageHistory.length >= this.interviewSessions[sessionId].messages.length) {
+            console.log(`[API] Using message history from frontend with ${messageHistory.length} messages`);
+            this.interviewSessions[sessionId].messages = [...messageHistory];
+          } 
+          // Ensure the current message is in the history
+          else {
+            // Add the current user message if it's not already there
+            const userMessage = { role: 'user', content: message };
+            if (!this.interviewSessions[sessionId].messages.some(m => 
+              m.role === 'user' && m.content === message)) {
+              this.interviewSessions[sessionId].messages.push(userMessage);
             }
           }
-        } else {
-          // Add the user message to the existing history
+        } 
+        // Just add the current message if no history provided
+        else if (message) {
           this.interviewSessions[sessionId].messages.push({
             role: 'user',
             content: message
           });
         }
         
-        // Get the current messages
+        // Get the updated messages array
         const messages = this.interviewSessions[sessionId].messages;
         
-        // Conduct the interview
-        const response = await interviewAgent.interview(messages, {}, {
-          identifyKnowledgeGaps: useRetrieval
-        });
-        
-        // Add the assistant's response to the history
-        this.interviewSessions[sessionId].messages.push({
-          role: 'assistant',
-          content: response
-        });
-        
-        // Get the updated state
-        this.interviewSessions[sessionId].state = interviewAgent.getState();
-        
-        // Return the response and state
-        res.json({
-          response,
-          state: this.interviewSessions[sessionId].state,
-          messageHistory: this.interviewSessions[sessionId].messages
-        });
+        try {
+          // Generate a response from the interview agent
+          const response = await interviewAgent.interview(messages, {}, {
+            debug: true
+          });
+          
+          // Add the assistant's response to the history
+          this.interviewSessions[sessionId].messages.push({
+            role: 'assistant',
+            content: response
+          });
+          
+          // Get the updated state
+          this.interviewSessions[sessionId].state = interviewAgent.getState();
+          
+          return res.json({
+            response,
+            state: this.interviewSessions[sessionId].state,
+            messageHistory: this.interviewSessions[sessionId].messages
+          });
+        } catch (error) {
+          console.error('[API] Error in interview agent:', error);
+          return res.status(500).json({
+            error: 'Interview agent error',
+            message: error.message
+          });
+        }
       } catch (error) {
         console.error('[API] Error in interview endpoint:', error);
         next(error);

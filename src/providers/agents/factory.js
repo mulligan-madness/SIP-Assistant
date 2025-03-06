@@ -3,8 +3,8 @@
  * Creates and manages specialized agent providers
  */
 
-const { InterviewAgentProvider } = require('./interview');
-const { RetrievalAgentProvider } = require('./retrieval');
+const { InterviewAgentProvider } = require('./interviewAgentProvider');
+const { RetrievalAgentProvider } = require('./retrievalAgentProvider');
 
 /**
  * Factory for creating and managing specialized agent providers

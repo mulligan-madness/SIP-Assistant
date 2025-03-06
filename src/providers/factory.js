@@ -2,9 +2,9 @@ const { OpenAIProvider } = require('./openai');
 const { AnthropicProvider } = require('./anthropic');
 
 // Import agent providers
-const { RetrievalAgentProvider } = require('./agents/retrieval');
-const { InterviewAgentProvider } = require('./agents/interview');
-const { DraftingAgentProvider } = require('./agents/drafting');
+const { RetrievalAgentProvider } = require('./agents/retrievalAgentProvider');
+const { InterviewAgentProvider } = require('./agents/interviewAgentProvider');
+const { DraftingAgentProvider } = require('./agents/draftingAgentProvider');
 
 class LLMProviderFactory {
   static validateConfig(type, config) {

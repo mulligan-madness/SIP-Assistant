@@ -1,9 +1,10 @@
-const { LLMProviderFactory } = require('../../src/providers/factory');
-const { BaseLLMProvider } = require('../../src/providers/base');
-const { BaseAgentProvider } = require('../../src/providers/agents/base');
-const { RetrievalAgentProvider } = require('../../src/providers/agents/retrievalAgentProvider');
-const { InterviewAgentProvider } = require('../../src/providers/agents/interviewAgentProvider');
-const { DraftingAgentProvider } = require('../../src/providers/agents/draftingAgentProvider');
+import { LLMProviderFactory } from '../../src/providers/factory';
+import { BaseLLMProvider } from '../../src/providers/base';
+import { BaseAgentProvider } from '../../src/providers/agents/base';
+import { RetrievalAgentProvider } from '../../src/providers/agents/retrievalAgentProvider';
+import { InterviewAgentProvider } from '../../src/providers/agents/interviewAgentProvider';
+import { DraftingAgentProvider } from '../../src/providers/agents/draftingAgentProvider';
+import { describe, test, expect, beforeEach } from 'vitest';
 
 // Set test environment
 process.env.NODE_ENV = 'test';

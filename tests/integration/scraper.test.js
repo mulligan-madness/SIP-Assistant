@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import nock from 'nock'
-import { DiscourseScraper } from '../src/scraper.js'
+import { DiscourseScraper } from '../../src/services/scraper.js'
 
 describe('DiscourseScraper', () => {
   let scraper
@@ -20,9 +20,10 @@ describe('DiscourseScraper', () => {
         }
       })
 
-    const response = await scraper.test()
-    expect(response.success).toBe(true)
-    expect(response.title).toBe('Test Forum')
+    // Use fetchWithRetry instead of test method
+    const response = await scraper.fetchWithRetry('https://test.forum.com/site.json')
+    expect(response).toBeDefined()
+    expect(response.about.title).toBe('Test Forum')
   })
 
   it('should handle errors gracefully', async () => {
@@ -30,8 +31,10 @@ describe('DiscourseScraper', () => {
       .get('/site.json')
       .replyWithError('Network error')
 
-    const response = await scraper.test()
-    expect(response.success).toBe(false)
-    expect(response.error).toBeDefined()
+    // Make maxRetries 1 to speed up test
+    scraper.options.maxRetries = 1
+    
+    await expect(scraper.fetchWithRetry('https://test.forum.com/site.json'))
+      .rejects.toThrow()
   })
 }) 

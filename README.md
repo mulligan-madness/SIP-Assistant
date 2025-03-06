@@ -106,17 +106,27 @@ SIP-assistant/
 │   ├── assets/          # Static assets
 │   ├── components/      # Vue components
 │   ├── providers/       # LLM provider implementations
+│   │   ├── base.js      # Base provider definition
+│   │   ├── factory.js   # Factory pattern
+│   │   └── agents/      # Agent-specific implementations
+│   ├── services/        # Business logic services
 │   ├── utils/           # Utility functions
+│   ├── config/          # Configuration management
 │   ├── App.vue          # Root Vue component
 │   ├── main.js          # Frontend entry point
-│   ├── chatbot.js       # Backend server
-│   └── scraper.js       # Forum data collection
+│   └── chatbot.js       # Backend server
 ├── tests/               # Test files
 │   ├── unit/           # Unit tests
-│   └── integration/    # Integration tests
+│   ├── integration/    # Integration tests
+│   ├── providers/      # Provider-specific tests
+│   ├── utils/          # Test utilities
+│   └── helpers/        # Test helpers
+├── docs/               # Documentation
+│   ├── best-practices/ # Best practices guides
+│   └── refactoring/    # Refactoring plans and notes
 ├── public/             # Public static files
 ├── dist/               # Build output
-└── output/             # Generated data
+└── data/               # Data storage
 ```
 
 ## 🛠 Technical Architecture

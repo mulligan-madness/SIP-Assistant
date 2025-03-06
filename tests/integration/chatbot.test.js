@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { storage } from '../src/services/storage'
-import { DiscourseScraper } from '../src/services/scraper'
-import { LLMProviderFactory } from '../src/providers/factory'
+import { storage } from '../../src/services/storage'
+import { DiscourseScraper } from '../../src/services/scraper'
+import { LLMProviderFactory } from '../../src/providers/factory'
 import nock from 'nock'
 
 describe('Chatbot Core Functionality', () => {

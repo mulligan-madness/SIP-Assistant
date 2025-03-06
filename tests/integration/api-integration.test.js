@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import nock from 'nock'
-import { DiscourseScraper } from '../src/scraper.js'
+import { DiscourseScraper } from '../../src/services/scraper.js'
 
 describe('Forum API Integration', () => {
   let scraper
@@ -10,7 +10,7 @@ describe('Forum API Integration', () => {
     scraper = new DiscourseScraper('https://test.forum.com')
   })
 
-  it('should test forum connection', async () => {
+  it('should fetch forum metadata', async () => {
     // Mock the forum API response
     nock('https://test.forum.com')
       .get('/site.json')
@@ -21,12 +21,12 @@ describe('Forum API Integration', () => {
         }
       })
 
-    const testResult = await scraper.test()
-    expect(testResult.success).toBe(true)
-    expect(testResult.title).toBe('Test Forum')
-  }, { timeout: 10000 })
+    const siteData = await scraper.fetchWithRetry('https://test.forum.com/site.json')
+    expect(siteData).toBeDefined()
+    expect(siteData.about.title).toBe('Test Forum')
+  })
 
-  it('should scrape forum data', async () => {
+  it('should fetch categories', async () => {
     // Mock the categories API response
     nock('https://test.forum.com')
       .get('/categories.json')
@@ -61,5 +61,5 @@ describe('Forum API Integration', () => {
     expect(categories).toBeDefined()
     expect(categories.length).toBeGreaterThan(0)
     expect(categories[0].name).toBe('Test Category')
-  }, { timeout: 10000 })
+  })
 }) 

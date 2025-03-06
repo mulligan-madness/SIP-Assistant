@@ -5,9 +5,10 @@
  * properly with the existing provider system.
  */
 
-const { LLMProviderFactory } = require('../../src/providers/factory');
-const { BaseLLMProvider } = require('../../src/providers/base');
-const { BaseAgentProvider } = require('../../src/providers/agents/base');
+import { LLMProviderFactory } from '../../src/providers/factory';
+import { BaseLLMProvider } from '../../src/providers/base';
+import { BaseAgentProvider } from '../../src/providers/agents/base';
+import { describe, test, expect, beforeEach } from 'vitest';
 
 // Set test environment
 process.env.NODE_ENV = 'test';

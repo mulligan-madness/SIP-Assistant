@@ -57,6 +57,9 @@ class ApiService {
     // Initialize the vector service
     this.vectorService = new VectorService();
     
+    // Initialize the chat service
+    this.chatService = null; // Will be set later
+    
     this.setupMiddleware();
     this.setupRoutes();
     
@@ -765,13 +768,19 @@ class ApiService {
         
         try {
           // Process the message
-          const response = await this.chatService.processMessage(message, sessionId, messageHistory);
+          const response = await this.chatService.processMessage(
+            message, 
+            sessionId, 
+            this.compressedContext,
+            this.sipData,
+            messageHistory
+          );
           
           // Return the response
           return res.json({
             success: true,
             response,
-            messageHistory: this.chatService.getMessageHistory(sessionId)
+            messageHistory: this.chatService.getChatHistory(sessionId)
           });
         } catch (error) {
           console.error('Error processing chat message:', error);
@@ -1033,6 +1042,10 @@ class ApiService {
 
     // Log environment mode
     console.log(`[API] Running in ${process.env.NODE_ENV} mode`);
+  }
+
+  setChatService(chatService) {
+    this.chatService = chatService;
   }
 }
 

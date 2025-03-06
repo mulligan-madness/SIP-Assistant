@@ -58,6 +58,9 @@ app.use(cors({
 const apiService = new ApiService(app);
 const chatService = new ChatService();
 
+// Set chat service in API service
+apiService.setChatService(chatService);
+
 // Initialize server state variables that the ApiService will need
 let sipData = [];
 let compressedContext = null;

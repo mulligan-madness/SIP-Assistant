@@ -108,10 +108,45 @@ class RetrievalAgentProvider extends BaseAgentProvider {
         
         // Clean HTML tags for better readability
         content = content
-          .replace(/<\/?[^>]+(>|$)/g, ' ') // Remove HTML tags
-          .replace(/&[a-z]+;/g, ' ')       // Remove HTML entities
-          .replace(/\s+/g, ' ')           // Normalize whitespace
+          .replace(/<p>/g, '\n')               // Convert paragraph tags to newlines
+          .replace(/<\/p>/g, '')               // Remove closing p tags
+          .replace(/<li>/g, '\n• ')            // Convert list items to bullet points
+          .replace(/<\/li>/g, '')              // Remove closing li tags
+          .replace(/<ul>|<\/ul>|<ol>|<\/ol>/g, '\n') // Handle lists
+          .replace(/<h[1-6]>/g, '\n\n')        // Handle headings
+          .replace(/<\/h[1-6]>/g, '\n')        // Handle heading closings
+          .replace(/<br\s*\/?>/g, '\n')        // Convert br tags to newlines
+          .replace(/<\/?[^>]+(>|$)/g, ' ')     // Remove remaining HTML tags
+          .replace(/&[a-z]+;/g, ' ')           // Remove HTML entities
+          .replace(/\s+/g, ' ')                // Normalize whitespace
+          .replace(/\n+/g, '\n')               // Normalize newlines
           .trim();
+        
+        // Extract the most relevant part if content is too long (>2000 chars)
+        if (content.length > 2000) {
+          // Try to find the most relevant section
+          const sentences = content.split(/[.!?]+\s/);
+          const normalizedQuery = query.toLowerCase();
+          
+          // Find sentences with terms from the query
+          const relevantSentences = sentences.filter(sentence => {
+            const normalizedSentence = sentence.toLowerCase();
+            return normalizedQuery.split(' ').some(term => 
+              term.length > 3 && normalizedSentence.includes(term)
+            );
+          });
+          
+          // If we found relevant sentences, use them
+          if (relevantSentences.length > 0) {
+            content = relevantSentences.join('. ');
+            if (content.length > 2000) {
+              content = content.substring(0, 2000) + '...';
+            }
+          } else {
+            // Otherwise just truncate
+            content = content.substring(0, 2000) + '...';
+          }
+        }
         
         // Ensure the title is available
         const title = doc.metadata?.title || doc.title || `Document ${doc.id || 'Unknown'}`;

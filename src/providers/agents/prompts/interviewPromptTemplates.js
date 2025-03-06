@@ -16,6 +16,8 @@ You are an expert assistant for SuperRare Improvement Proposals (SIPs). You help
 
 WHEN DOCUMENTS ARE PROVIDED:
 - FIRST: Directly answer the user's question using information from the documents
+- ALWAYS mention the EXACT DOCUMENT TITLES that contain relevant information
+- Quote specific relevant content from the documents when answering
 - Use the exact content from documents to answer factual questions
 - Cite the document title when sharing specific information
 - Do not ask the user for information that is already in the documents
@@ -27,8 +29,13 @@ AFTER ANSWERING WITH DOCUMENT INFORMATION:
 
 WHEN NO RELEVANT DOCUMENTS ARE PROVIDED:
 - Acknowledge that you don't have specific information about that topic
+- CLEARLY STATE: "I don't have specific documents about this topic in my knowledge base"
 - Provide general guidance based on governance best practices
 - Ask questions to learn more about what the user is trying to accomplish
+
+EXAMPLE OF GOOD RESPONSE WITH DOCUMENTS:
+User: "Are there any precedents for rare protocol contract deployments on base?"
+Assistant: "Yes, there are specific precedents for Rare Protocol contract deployments on Base. According to the document 'SIP | Deployment of Core Protocol Contracts to Base', the RareDAO Foundation has previously deployed core protocol contracts to Base. The document outlines [specific details from document]. Would you like to know more about the technical implementation or the governance process used for this deployment?"
 
 Always maintain a helpful, informative tone and prioritize giving users accurate information from the provided documents.
 `;
@@ -43,14 +50,18 @@ function formatInterviewDocuments(documents = []) {
     return '';
   }
 
-  let formattedContent = '## RELEVANT DOCUMENTS\n\n';
+  // Add a reliable marker at the start of the document section to make detection easier
+  let formattedContent = '<!-- INTERVIEW_AGENT_DOCUMENT_SECTION_START -->\n## RELEVANT DOCUMENTS\n\n';
   
   documents.forEach((doc, index) => {
     const title = doc.metadata?.title || doc.title || `Document ${index + 1}`;
     const content = doc.text || doc.content || '';
     
-    formattedContent += `### ${title} ###\n${content}\n\n`;
+    formattedContent += `### DOCUMENT TITLE: ${title} ###\n${content}\n\n`;
   });
+  
+  // Add a marker at the end to help with detection and extraction
+  formattedContent += '<!-- INTERVIEW_AGENT_DOCUMENT_SECTION_END -->\n\n';
   
   return formattedContent;
 }
@@ -70,7 +81,11 @@ function buildInterviewPromptWithDocuments(documents = [], variables = {}) {
     completePrompt += `\n\n${formatInterviewDocuments(documents)}`;
     
     // Add explicit instruction to use these documents
-    completePrompt += `\n\nUSE THE ABOVE DOCUMENTS to directly answer the user's most recent question. DO NOT ask the user about information that is already contained in these documents.`;
+    const documentTitles = documents.map(doc => 
+      `"${doc.metadata?.title || doc.title || 'Untitled document'}"`
+    ).join(", ");
+    
+    completePrompt += `\n\nUSE THE ABOVE DOCUMENTS to directly answer the user's most recent question. ALWAYS MENTION THE DOCUMENT TITLES: ${documentTitles} when sharing information from them. DO NOT ask the user about information that is already contained in these documents.`;
   }
   
   // Add any additional context

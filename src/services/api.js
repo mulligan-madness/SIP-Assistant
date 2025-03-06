@@ -741,52 +741,50 @@ class ApiService {
     })
 
     // Chat endpoint to process user messages
-    this.app.post('/api/chat', validateChatInput, async (req, res) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          error: 'Validation error',
-          userMessage: errors.array()[0].msg
-        });
-      }
-
+    this.app.post('/api/chat', validateChatInput, async (req, res, next) => {
       try {
+        // Validate that the LLM is initialized
         if (!global.llmProvider) {
           return res.status(400).json({
-            error: 'LLM not initialized',
-            userMessage: 'Please initialize the LLM provider first'
+            success: false,
+            message: 'LLM provider not initialized',
+            error: 'Please initialize the LLM provider first.'
           });
         }
 
+        // Extract parameters from request
         const { message, sessionId, messageHistory } = req.body;
-        console.log('Sending chat request to:', '/api/chat');
-        console.log('Request payload:', { 
-          message: message.substring(0, 50) + (message.length > 50 ? '...' : ''), 
+        
+        // Log the incoming request
+        console.log('Sending chat request to: /api/chat');
+        console.log('Request payload:', {
+          message: message.length > 30 ? message.substring(0, 30) + '...' : message,
           sessionId,
           messageHistoryLength: messageHistory ? messageHistory.length : 0
         });
-
-        const chatService = new ChatService();
-        const response = await chatService.processMessage(
-          message, 
-          sessionId,
-          this.compressedContext,
-          this.sipData,
-          messageHistory
-        );
-
-        res.json({ 
-          success: true, 
-          message: response,
-          sessionId
-        });
+        
+        try {
+          // Process the message
+          const response = await this.chatService.processMessage(message, sessionId, messageHistory);
+          
+          // Return the response
+          return res.json({
+            success: true,
+            response,
+            messageHistory: this.chatService.getMessageHistory(sessionId)
+          });
+        } catch (error) {
+          console.error('Error processing chat message:', error);
+          
+          return res.status(500).json({
+            success: false,
+            message: 'Error processing your message',
+            error: error.message
+          });
+        }
       } catch (error) {
-        console.error('Error processing chat message:', error);
-        res.status(500).json({
-          success: false,
-          message: 'Error processing your message',
-          error: error.message
-        });
+        console.error('Unexpected error in chat endpoint:', error);
+        next(error);
       }
     });
 
@@ -886,8 +884,11 @@ class ApiService {
         
         try {
           // Generate a response from the interview agent
-          const response = await interviewAgent.interview(messages, {}, {
-            debug: true
+          const response = await interviewAgent.interview(messages, {
+            sessionId
+          }, {
+            debug: true,
+            sessionId
           });
           
           // Add the assistant's response to the history

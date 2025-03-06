@@ -32,6 +32,9 @@ class InterviewAgentProvider extends BaseAgentProvider {
     // Debug flag for verbose logging
     this.debug = config.debug || false;
     
+    // Document memory to maintain context across turns
+    this.documentMemory = new Map();
+    
     if (this.retrievalAgent) {
       console.log('[AGENT] Interview agent initialized with retrieval agent');
     }
@@ -50,6 +53,9 @@ class InterviewAgentProvider extends BaseAgentProvider {
     // Create a copy of messages to avoid modifying the original
     const messagesCopy = [...messages];
     
+    // Get the session ID from context or options
+    const sessionId = context.sessionId || options.sessionId || 'default';
+    
     // --- RETRIEVE RELEVANT DOCUMENTS ---
     let documents = [];
     if (this.retrievalAgent && messages.length > 0) {
@@ -57,22 +63,52 @@ class InterviewAgentProvider extends BaseAgentProvider {
       const userMessages = messages.filter(m => m.role === 'user');
       if (userMessages.length > 0) {
         const latestUserMessage = userMessages[userMessages.length - 1].content;
+        const latestUserIndex = messages.findIndex(m => 
+          m.role === 'user' && m.content === latestUserMessage
+        );
         
         if (this.debug) {
           console.log(`[AGENT_COMMUNICATION] Retrieving documents for: "${latestUserMessage}"`);
         }
         
         // Retrieve documents based on the user's question
-        documents = await this.retrievalAgent.retrieve(latestUserMessage, {
+        const newDocuments = await this.retrievalAgent.retrieve(latestUserMessage, {
           threshold: 0.55, // Lower threshold for better recall
           limit: 7        // Increase limit for more comprehensive results
         });
         
-        if (this.debug && documents.length > 0) {
-          console.log(`[AGENT_COMMUNICATION] Found ${documents.length} relevant documents`);
-          documents.forEach((doc, i) => {
-            console.log(`  ${i+1}. ${doc.metadata?.title || 'Untitled'} (Score: ${doc.score?.toFixed(2) || 'N/A'})`);
+        if (newDocuments.length > 0) {
+          documents = newDocuments;
+          
+          // Store these documents in memory for this session
+          this.documentMemory.set(sessionId, {
+            query: latestUserMessage,
+            documents: newDocuments,
+            timestamp: Date.now()
           });
+          
+          if (this.debug) {
+            console.log(`[AGENT_COMMUNICATION] Found ${documents.length} relevant documents`);
+            documents.forEach((doc, i) => {
+              console.log(`  ${i+1}. ${doc.metadata?.title || 'Untitled'} (Score: ${doc.score?.toFixed(2) || 'N/A'})`);
+            });
+          }
+        } 
+        // If no new documents were found, but we have a follow-up question, use previously retrieved documents
+        else if (latestUserIndex > 0 && this.documentMemory.has(sessionId)) {
+          const memoryEntry = this.documentMemory.get(sessionId);
+          
+          // Only use memory if it's recent (within 30 minutes)
+          const isRecent = (Date.now() - memoryEntry.timestamp) < 30 * 60 * 1000;
+          
+          if (isRecent) {
+            documents = memoryEntry.documents;
+            
+            if (this.debug) {
+              console.log(`[AGENT_COMMUNICATION] Using ${documents.length} documents from memory for follow-up question`);
+              console.log(`[AGENT_COMMUNICATION] Original query: "${memoryEntry.query}"`);
+            }
+          }
         }
       }
     }
@@ -90,7 +126,8 @@ class InterviewAgentProvider extends BaseAgentProvider {
     // --- GET RESPONSE FROM THE LLM ---
     const response = await this.llmProvider.chat(messagesCopy, {
       ...context,
-      systemPrompt: enhancedSystemPrompt
+      systemPrompt: enhancedSystemPrompt,
+      sessionId
     });
     
     return response;
@@ -164,6 +201,18 @@ class InterviewAgentProvider extends BaseAgentProvider {
    */
   supportsCapability(capability) {
     return capability === 'interview';
+  }
+  
+  /**
+   * Clear document memory for a specific session
+   * @param {string} sessionId - The session ID
+   */
+  clearDocumentMemory(sessionId) {
+    if (sessionId) {
+      this.documentMemory.delete(sessionId);
+    } else {
+      this.documentMemory.clear();
+    }
   }
 }
 

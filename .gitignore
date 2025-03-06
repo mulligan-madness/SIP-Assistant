@@ -70,4 +70,7 @@ output/*.md
 output/compressed-context*
 output/forum-data-*
 output/sip-data-*
-output/chat-history-* 
+output/chat-history-*
+
+# Data directory - contains large files like vector stores, scraped data, etc.
+data/ 

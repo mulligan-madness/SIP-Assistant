@@ -3,7 +3,9 @@
     <!-- Chat Header -->
     <ChatHeader 
       :showSettings="showSettings" 
+      :isInterviewMode="isInterviewMode"
       @toggle-settings="toggleSettings"
+      @toggle-mode="toggleChatMode"
     />
     
     <!-- Messages Container -->
@@ -93,6 +95,7 @@ export default {
     const serverInitialized = ref(false)
     const initializationChecked = ref(false)
     const showResearch = ref(false)
+    const isInterviewMode = ref(false)
     const researchData = ref({
       documents: [
         {
@@ -154,6 +157,42 @@ export default {
       showResearch.value = !showResearch.value
       emit('toggle-research')
     }
+
+    const toggleChatMode = async () => {
+      // Toggle the mode in the UI immediately for responsive feedback
+      isInterviewMode.value = !isInterviewMode.value;
+      
+      // Add an indicator message to show the mode change
+      messages.value.push({
+        type: 'system',
+        content: isInterviewMode.value 
+          ? '🔄 Switched to Interview Mode: I\'ll ask Socratic questions to help you explore your ideas.'
+          : '🔄 Switched to Chat Mode: I\'ll provide direct answers and assistance.'
+      });
+      
+      scrollToBottom();
+      
+      // Clear the session if switching modes
+      try {
+        const base = (window.location.origin && window.location.origin !== 'null') 
+          ? window.location.origin 
+          : 'http://localhost';
+          
+        if (isInterviewMode.value) {
+          // No need to make an API call here - the next user message
+          // will automatically use the interview endpoint
+          console.log('Switched to Interview Mode');
+        } else {
+          // Clear the interview session when switching back to chat mode
+          const response = await fetch(`${base}/api/interview/clear/${sessionId.value}`, {
+            method: 'POST'
+          });
+          console.log('Cleared interview session');
+        }
+      } catch (error) {
+        console.error('Error toggling chat mode:', error);
+      }
+    };
 
     // Watchers
     watch(showSettings, (newValue) => {
@@ -281,13 +320,19 @@ export default {
           messageHistory
         }, null, 2));
         
-        const response = await fetch('/api/chat', {
+        const base = (window.location.origin && window.location.origin !== 'null') ? window.location.origin : 'http://localhost';
+        const endpoint = isInterviewMode.value ? `${base}/api/interview` : `${base}/api/chat`;
+        
+        const response = await fetch(endpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
             message: messageText,
             sessionId: sessionId.value,
-            messageHistory
+            messageHistory: messageHistory,
+            useRetrieval: true // Enable retrieval for interview mode
           })
         });
 
@@ -461,7 +506,9 @@ export default {
       renderMarkdown,
       handleCopy,
       toggleResearch,
-      handleReference
+      handleReference,
+      isInterviewMode,
+      toggleChatMode
     }
   }
 }

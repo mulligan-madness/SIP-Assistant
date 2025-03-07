@@ -22,16 +22,54 @@
 <script setup>
 import { defineEmits, defineProps } from 'vue';
 
+/**
+ * Component for displaying control buttons for chat actions
+ * @component
+ */
+
 // Define props
 const props = defineProps({
+  /**
+   * Whether the research panel is currently active/visible
+   */
   isResearchActive: {
     type: Boolean,
+    required: false,
     default: false
   }
 });
 
 // Define emits
-const emit = defineEmits(['export', 'enforce', 'pretty', 'markdown', 'research']);
+/**
+ * Events emitted by the component
+ */
+const emit = defineEmits([
+  /**
+   * Emitted when the export button is clicked
+   * @event export
+   */
+  'export', 
+  /**
+   * Emitted when the enforce section headers button is clicked
+   * @event enforce
+   */
+  'enforce', 
+  /**
+   * Emitted when the pretty text button is clicked
+   * @event pretty
+   */
+  'pretty', 
+  /**
+   * Emitted when the markdown button is clicked
+   * @event markdown
+   */
+  'markdown', 
+  /**
+   * Emitted when the research panel toggle button is clicked
+   * @event research
+   */
+  'research'
+]);
 
 // Toggle research panel
 const toggleResearch = () => {

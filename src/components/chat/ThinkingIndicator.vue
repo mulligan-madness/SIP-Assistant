@@ -13,17 +13,32 @@
 <script setup>
 import { defineProps } from 'vue';
 
+/**
+ * Component for displaying a thinking indicator while waiting for a response
+ * @component
+ */
+
 // Define props
 const props = defineProps({
+  /**
+   * Whether the indicator is currently loading/thinking
+   */
   isLoading: {
     type: Boolean,
     required: true,
     default: false
   },
+  /**
+   * The elapsed thinking time to display (format: "0:00")
+   */
   thinkingTime: {
     type: String,
     required: true,
-    default: '0:00'
+    default: '0:00',
+    validator: function(value) {
+      // Validate format (m:ss)
+      return /^\d+:\d{2}$/.test(value);
+    }
   }
 });
 </script>

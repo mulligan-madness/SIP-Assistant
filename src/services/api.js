@@ -6,7 +6,7 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const cors = require('cors');
 const { LLMProviderFactory } = require('../providers/factory');
-const Storage = require('./storage');
+const { StorageService } = require('./storage');
 const { DiscourseScraper } = require('./scraper');
 const VectorService = require('./vector');
 const { documentService } = require('./document');
@@ -68,6 +68,23 @@ class ApiService {
 
     // Add early in constructor or initialization
     this.checkEnvironmentConfig();
+  }
+
+  /**
+   * Log a message with the API service prefix
+   * @param {string} message - The message to log
+   */
+  log(message) {
+    console.log(`[API] ${message}`);
+  }
+
+  /**
+   * Log an error with the API service prefix
+   * @param {string} message - The error message
+   * @param {Error} error - The error object
+   */
+  logError(message, error) {
+    console.error(`[API] ${message}:`, error);
   }
 
   setupMiddleware() {
@@ -216,19 +233,77 @@ class ApiService {
           console.log(`[API] Starting forum scrape from ${process.env.FORUM_BASE_URL}`);
           const scrapedData = await scraper.scrapeAll();
           console.log(`[API] Scrape completed, saving ${scrapedData.posts?.length || 0} posts`);
-          await Storage.saveScrapeResult(scrapedData);
+          const storage = new StorageService();
+          await storage.saveScrapeResult(scrapedData);
           this.sipData = scrapedData.posts;
-          
-          // Set a flag to indicate that vector reindexing is needed
-          req.app.locals.needsVectorReindex = true;
           
           // Automatically trigger vector reindexing
           console.log('[API] Automatically triggering vector reindexing after forum scrape');
           
           try {
-            // Use the VectorService to reindex forum data directly
-            const result = await this.vectorService.reindexForumData(scrapedData.posts);
-            console.log(`[API] Vector reindexing completed: ${result.indexed} indexed, ${result.skipped} skipped`);
+            // Instead of calling a non-existent method, use the same logic as the index-forum-data endpoint
+            const posts = scrapedData.posts;
+            
+            if (!posts || posts.length === 0) {
+              throw new Error('No forum posts available to index');
+            }
+            
+            console.log(`Found ${posts.length} forum posts to index`);
+            
+            // Initialize the vector service if needed
+            if (!this.vectorService.initialized) {
+              await this.vectorService.initialize();
+            }
+            
+            // Clear existing vectors
+            await this.vectorService.clear();
+            
+            // Process posts in batches to avoid overwhelming the system
+            const batchSize = 5;
+            let processed = 0;
+            let skipped = 0;
+            
+            for (let i = 0; i < posts.length; i += batchSize) {
+              const batch = posts.slice(i, i + batchSize);
+              const batchStartMsg = `Processing batch ${Math.floor(i/batchSize) + 1} of ${Math.ceil(posts.length/batchSize)}`;
+              console.log(batchStartMsg);
+              
+              for (const post of batch) {
+                // Process the post content - map from scraper format (t, c, d) to expected format
+                const processedPost = {
+                  id: post.id,
+                  title: post.t || post.title, // Support both formats
+                  url: post.url,
+                  content: post.c || post.content // Support both formats
+                };
+                
+                // Skip posts with empty content
+                if (!processedPost.content || processedPost.content.trim() === '') {
+                  console.log(`Skipping post with empty or missing content: ${processedPost.title || 'Untitled'}`);
+                  skipped++;
+                  continue;
+                }
+                
+                try {
+                  await this.vectorService.addDocument(processedPost.content, {
+                    title: processedPost.title,
+                    url: processedPost.url,
+                    id: processedPost.id,
+                    type: 'forum_post'
+                  });
+                  
+                  processed++;
+                } catch (error) {
+                  console.error(`Error indexing post: ${processedPost.title}`, error);
+                  skipped++;
+                }
+              }
+              
+              // Small delay between batches
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            console.log(`Vector reindexing completed: ${processed} indexed, ${skipped} skipped`);
             
             // Clear the reindexing flag since we've handled it
             req.app.locals.needsVectorReindex = false;
@@ -238,10 +313,10 @@ class ApiService {
               message: 'Data rescraped and vector store reindexed successfully', 
               count: this.sipData.length,
               reindexed: true,
-              indexStats: result
+              indexStats: { indexed: processed, skipped }
             });
-          } catch (reindexError) {
-            console.error('[API] Error reindexing vector store:', reindexError);
+          } catch (error) {
+            console.error('[API] Error reindexing vector store:', error);
             
             // Keep the flag set so the frontend knows reindexing is still needed
             res.json({ 
@@ -249,12 +324,13 @@ class ApiService {
               message: 'Data rescraped successfully, but vector reindexing failed', 
               count: this.sipData.length,
               needsVectorReindex: true,
-              reindexError: reindexError.message
+              reindexError: error.message
             });
           }
         } else {
           console.log('[API] Attempting to load data from storage');
-          const latestData = await Storage.getLatestScrape();
+          const storage = new StorageService();
+          const latestData = await storage.getLatestScrape();
           if (latestData) {
             console.log(`[API] Loaded ${latestData.posts?.length || 0} posts from storage`);
             this.sipData = latestData.posts;
@@ -477,9 +553,8 @@ class ApiService {
     this.app.post('/api/vector/index-forum-data', async (req, res) => {
       try {
         console.log('Starting forum data indexing')
-        const Storage = require('./storage')
-        const storage = new Storage()
-        const posts = await storage.loadForumData()
+        const storage = new StorageService();
+        const posts = await storage.loadForumData();
         
         if (!posts || posts.length === 0) {
           return res.json({ success: false, message: 'No forum posts available to index' })
@@ -553,21 +628,27 @@ class ApiService {
             // Process batch
             for (const post of batch) {
               try {
-                // Map the short field names to the expected names
+                // Process the post content - map from scraper format (t, c, d) to expected format
                 const processedPost = {
-                  title: post.title || post.t,
-                  content: post.content || post.c,
-                  url: post.url,
                   id: post.id,
-                  date: post.date || post.d
+                  title: post.t || post.title, // Support both formats
+                  url: post.url,
+                  content: post.c || post.content // Support both formats
                 };
                 
-                if (!processedPost.title || !processedPost.content || processedPost.content.trim() === '') {
+                // Skip posts with empty content
+                if (!processedPost.content || processedPost.content.trim() === '') {
+                  console.log(`Skipping post with empty or missing content: ${processedPost.title || 'Untitled'}`);
                   skippedCount++;
                   continue;
                 }
                 
-                await vector.addForumPost(processedPost);
+                await vector.addDocument(processedPost.content, {
+                  title: processedPost.title,
+                  url: processedPost.url,
+                  id: processedPost.id,
+                  type: 'forum_post'
+                });
                 processed++;
                 
                 // Update progress periodically
@@ -593,7 +674,7 @@ class ApiService {
           }
         } else {
           // Use the existing method for regular indexing
-          await vector.clearForumData()
+          await vector.clear()
           
           // Process posts in batches to avoid overwhelming the system
           const batchSize = 5
@@ -614,18 +695,18 @@ class ApiService {
             
             // Process each post in the batch
             for (const post of batch) {
-              // Map the short field names to the expected names
+              // Process the post content - map from scraper format (t, c, d) to expected format
               const processedPost = {
-                title: post.title || post.t,
-                content: post.content || post.c,
-                url: post.url,
                 id: post.id,
-                date: post.date || post.d
+                title: post.t || post.title, // Support both formats
+                url: post.url,
+                content: post.c || post.content // Support both formats
               };
               
-              if (!processedPost.title || !processedPost.content || processedPost.content.trim() === '') {
-                skippedCount++
-                sendProgress('progress', {
+              // Skip posts with empty content
+              if (!processedPost.content || processedPost.content.trim() === '') {
+                sendProgress('log', {
+                  total: req.app.locals.indexingProgress.total,
                   processed: req.app.locals.indexingProgress.processed,
                   log: `Skipping post with empty or missing content: ${processedPost.title || 'Untitled'}`,
                   logType: 'warning'
@@ -634,7 +715,12 @@ class ApiService {
               }
               
               try {
-                await vector.addForumPost(processedPost)
+                await vector.addDocument(processedPost.content, {
+                  title: processedPost.title,
+                  url: processedPost.url,
+                  id: processedPost.id,
+                  type: 'forum_post'
+                });
                 
                 // Update progress
                 processed++;
@@ -1006,20 +1092,27 @@ class ApiService {
 
   async initializeVectorService() {
     try {
-      console.log('[API] Initializing vector service...');
+      this.log('Initializing vector service...');
+      
+      // Initialize the vector service
       await this.vectorService.initialize();
       
-      // Log vector store status
-      const vectorCount = this.vectorService.getVectorCount();
-      console.log(`[API] Vector service initialized with ${vectorCount} vectors`);
+      // Get the vector count
+      const vectorCount = await this.vectorService.getVectorCount();
       
-      // If we have no vectors, we'll wait for the frontend to trigger indexing
-      // This allows the server to start quickly even if there's no vector data yet
+      this.log(`Vector service initialized with ${vectorCount} vectors`);
+      
+      // Only show the "waiting for indexing" message if there are no vectors
       if (vectorCount === 0) {
-        console.log('[API] Vector store is empty. Waiting for indexing request from frontend.');
+        this.log('Vector store is empty. Waiting for indexing request from frontend.');
+      } else {
+        this.log('Vector store already contains data. No indexing required.');
       }
+      
+      return true;
     } catch (error) {
-      console.error('[API] Failed to initialize vector service:', error);
+      this.logError('Error initializing vector service', error);
+      return false;
     }
   }
 

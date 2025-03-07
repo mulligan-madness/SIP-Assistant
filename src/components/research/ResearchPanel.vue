@@ -1,145 +1,70 @@
 <template>
   <div v-if="visible" class="research-panel">
-    <div class="research-panel__header">
-      <h2 class="research-panel__title">Research Results</h2>
-      <button 
-        class="research-panel__close-button"
-        @click="$emit('toggle')"
-        aria-label="Close Research Panel"
-        title="Close panel"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
-    </div>
+    <!-- Panel Header -->
+    <PanelHeader 
+      title="Research Results" 
+      @close-panel="$emit('toggle-panel')"
+    />
     
-    <!-- Simple Search Form -->
-    <div class="research-panel__search">
-      <input 
-        type="text" 
-        v-model="searchQuery" 
-        placeholder="Search for relevant documents..." 
-        class="research-panel__search-input"
-        @keyup.enter="performSearch"
-        title="Enter keywords to search for relevant governance documents"
-      />
-      <button 
-        class="research-panel__search-button"
-        @click="performSearch"
-        :disabled="isSearching"
-        title="Search for documents related to your query"
-      >
-        <span v-if="isSearching">Searching...</span>
-        <span v-else>Search</span>
-      </button>
-      <button 
-        v-if="showDebug"
-        class="research-panel__debug-button"
-        @click="debugVectorStore"
-        title="Debug vector store"
-      >
-        Debug
-      </button>
-    </div>
+    <!-- Search Form -->
+    <SearchForm 
+      :is-searching="isSearching"
+      :show-debug="showDebug"
+      @search="performSearch"
+      @debug="debugVectorStore"
+    />
     
     <div class="research-panel__content">
       <!-- First-use Help Message -->
-      <div v-if="!searchAttempted && !searchResults && showHelp" class="research-panel__help">
-        <h3>How to Use Research</h3>
-        <p>Search for governance-related topics to find relevant documents from the knowledge base.</p>
-        <ul>
-          <li><strong>Search:</strong> Enter keywords and press Enter or click Search</li>
-          <li><strong>View Content:</strong> Click "View Content" to read the full document</li>
-          <li><strong>Reference:</strong> Click "Reference" to insert a citation into your chat</li>
-        </ul>
-        <div class="research-panel__help-actions">
-          <button @click="showHelp = false" class="research-panel__help-button">Got it!</button>
-        </div>
-      </div>
+      <HelpSection 
+        v-if="!searchAttempted && !searchResults && showHelp"
+        @dismiss="showHelp = false"
+      />
       
-      <!-- Loading State -->
-      <div v-else-if="isSearching" class="research-panel__loading">
-        <div class="spinner"></div>
-        <p>Searching for relevant documents...</p>
-      </div>
-      
-      <!-- Empty State -->
-      <div v-else-if="!searchResults || searchResults.length === 0" class="research-panel__placeholder">
-        <p v-if="searchAttempted">No documents found. Try a different search query.</p>
-        <p v-else>Enter a search query to find relevant governance documents.</p>
-        <p v-if="!searchAttempted" class="research-panel__tip">
-          <strong>Tip:</strong> Try searching for topics like "voting", "treasury", or "proposals"
-        </p>
-        <div v-else class="no-results">
-          <p>No results found for "{{ searchQuery }}"</p>
-          <p class="search-tip">Try using different keywords or more general terms. The search uses semantic matching with a threshold of {{ Math.round(searchThreshold * 100) }}% similarity.</p>
-        </div>
-      </div>
-      
-      <!-- Error State -->
-      <div v-else-if="searchError" class="research-panel__error">
-        <p>{{ searchError }}</p>
-        <button @click="clearError" class="research-panel__error-button">Try Again</button>
-      </div>
+      <!-- Status Display (Loading, Empty, Error) -->
+      <StatusDisplay
+        v-if="isSearching || !searchResults || searchResults.length === 0 || searchError"
+        :is-loading="isSearching"
+        :is-empty="!searchResults || searchResults.length === 0"
+        :search-attempted="searchAttempted"
+        :has-error="!!searchError"
+        :error-message="searchError"
+        :search-query="searchQuery"
+        :search-threshold="searchThreshold"
+        @clear-error="clearError"
+      />
       
       <!-- Results -->
       <div v-else class="research-panel__results">
-        <div v-for="(doc, index) in searchResults" :key="index" class="document-card">
-          <div class="document-card__header">
-            <h3 class="document-card__title">{{ doc.metadata?.title || 'Untitled Document' }}</h3>
-            <div class="document-card__meta">
-              <span class="document-card__date">{{ formatDate(doc.metadata?.date) }}</span>
-              <span class="document-card__score">Relevance: {{ Math.round(doc.score * 100) }}%</span>
-            </div>
-          </div>
-          
-          <div class="document-card__content" v-if="expandedDocuments[index]">
-            <div class="document-card__text" v-html="formatMarkdown(doc.text)"></div>
-            <div class="document-card__citation">
-              <h4>Citation</h4>
-              <p>{{ generateCitation(doc) }}</p>
-              <button 
-                class="document-card__copy-button"
-                @click="copyToClipboard(generateCitation(doc))"
-                title="Copy citation to clipboard"
-              >
-                Copy
-              </button>
-            </div>
-          </div>
-          
-          <div class="document-card__actions">
-            <button 
-              class="document-card__button"
-              @click="toggleDocument(index)"
-              :title="expandedDocuments[index] ? 'Hide document content' : 'Show full document content'"
-            >
-              {{ expandedDocuments[index] ? 'Collapse' : 'View Content' }}
-            </button>
-            <button 
-              class="document-card__button"
-              @click="referenceDocument(doc)"
-              title="Insert this document as a reference in your chat"
-            >
-              Reference
-            </button>
-          </div>
-        </div>
+        <DocumentCard
+          v-for="(doc, index) in searchResults"
+          :key="index"
+          :doc="doc"
+          :initial-expanded="expandedDocuments[index]"
+          @toggle="(expanded) => expandedDocuments[index] = expanded"
+          @reference="referenceDocument"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { defineProps, defineEmits, ref, reactive, onMounted } from 'vue';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
-import { formatDate } from '../../utils';
+import { ref, reactive, onMounted } from 'vue';
+import PanelHeader from './PanelHeader.vue';
+import SearchForm from './SearchForm.vue';
+import HelpSection from './HelpSection.vue';
+import StatusDisplay from './StatusDisplay.vue';
+import DocumentCard from './DocumentCard.vue';
 
-// Define props
+/**
+ * Research panel component for searching and displaying documents
+ * @component
+ */
 const props = defineProps({
+  /**
+   * Whether the panel is visible
+   */
   visible: {
     type: Boolean,
     required: true,
@@ -148,7 +73,25 @@ const props = defineProps({
 });
 
 // Define emits
-const emit = defineEmits(['toggle', 'reference']);
+/**
+ * Events emitted by the component
+ */
+const emit = defineEmits([
+  /**
+   * Emitted when the panel should be toggled (shown/hidden)
+   * @event toggle-panel
+   */
+  'toggle-panel',
+  
+  /**
+   * Emitted when a document is referenced
+   * @event reference-document
+   * @property {Object} docInfo - Information about the referenced document
+   * @property {string} docInfo.text - The document text
+   * @property {string} docInfo.citation - The document citation
+   */
+  'reference-document'
+]);
 
 // Search state
 const searchQuery = ref('');
@@ -172,12 +115,18 @@ onMounted(() => {
   }
 });
 
-// Methods
-const performSearch = async (retry = false) => {
-  if (!searchQuery.value.trim()) {
+/**
+ * Perform a search for documents
+ * @param {string} query - The search query
+ * @param {boolean} retry - Whether this is a retry attempt
+ */
+const performSearch = async (query, retry = false) => {
+  if (!query) {
     searchError.value = 'Please enter a search query';
     return;
   }
+  
+  searchQuery.value = query;
   
   if (retry) {
     retryCount.value++;
@@ -194,7 +143,6 @@ const performSearch = async (retry = false) => {
     return;
   }
   
-  const query = searchQuery.value.trim();
   console.log(`[ResearchPanel] Search query: "${query}"`);
   
   // Check cache first
@@ -248,7 +196,7 @@ const performSearch = async (retry = false) => {
         console.log(`[ResearchPanel] Rate limited or server error. Retrying in ${retryDelay}ms...`);
         
         setTimeout(() => {
-          performSearch(true);
+          performSearch(query, true);
         }, retryDelay);
         
         return;
@@ -306,7 +254,7 @@ const performSearch = async (retry = false) => {
       console.log(`[ResearchPanel] Network error. Retrying in ${retryDelay}ms...`);
       
       setTimeout(() => {
-        performSearch(true);
+        performSearch(query, true);
       }, retryDelay);
       
       return;
@@ -322,53 +270,25 @@ const performSearch = async (retry = false) => {
   }
 };
 
+/**
+ * Clear any search errors
+ */
 const clearError = () => {
   searchError.value = null;
   retryCount.value = 0;
 };
 
-const toggleDocument = (index) => {
-  expandedDocuments[index] = !expandedDocuments[index];
+/**
+ * Reference a document in the chat
+ * @param {Object} docInfo - The document information
+ */
+const referenceDocument = (docInfo) => {
+  emit('reference-document', docInfo);
 };
 
-const referenceDocument = (doc) => {
-  emit('reference', {
-    text: doc.text,
-    citation: generateCitation(doc)
-  });
-};
-
-const generateCitation = (doc) => {
-  const title = doc.metadata?.title || 'Untitled Document';
-  const date = formatDate(doc.metadata?.date);
-  const source = doc.metadata?.source || 'Unknown Source';
-  
-  return `${title} (${date}). ${source}.`;
-};
-
-const copyToClipboard = (text) => {
-  navigator.clipboard.writeText(text)
-    .then(() => {
-      console.log('Copied to clipboard');
-    })
-    .catch(err => {
-      console.error('Failed to copy:', err);
-    });
-};
-
-const formatMarkdown = (text) => {
-  if (!text) return '';
-  
-  try {
-    const rawHtml = marked(text);
-    return DOMPurify.sanitize(rawHtml);
-  } catch (error) {
-    console.error('Error rendering markdown:', error);
-    return DOMPurify.sanitize(String(text));
-  }
-};
-
-// Debug function to check vector store status
+/**
+ * Debug the vector store
+ */
 const debugVectorStore = async () => {
   try {
     console.log('[ResearchPanel] Fetching vector store debug info...');
@@ -421,231 +341,10 @@ const debugVectorStore = async () => {
   color: var(--text-color, #e0e0e0);
 }
 
-.research-panel__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color, #333);
-}
-
-.research-panel__title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.research-panel__close-button {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  color: var(--text-secondary, #aaa);
-  border-radius: 4px;
-}
-
-.research-panel__close-button:hover {
-  background: var(--hover-color, #3c3c3e);
-}
-
-.research-panel__search {
-  padding: 12px 16px;
-  display: flex;
-  gap: 8px;
-  border-bottom: 1px solid var(--border-color, #333);
-}
-
-.research-panel__search-input {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid var(--border-color, #333);
-  border-radius: 4px;
-  font-size: 14px;
-  background: var(--input-background, #2c2c2e);
-  color: var(--text-color, #e0e0e0);
-}
-
-.research-panel__search-input::placeholder {
-  color: var(--text-secondary, #aaa);
-}
-
-.research-panel__search-button {
-  padding: 8px 16px;
-  background: var(--button-primary, #7c5ddf);
-  color: var(--button-text-primary, #ffffff);
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background-color 0.2s ease;
-}
-
-.research-panel__search-button:hover:not(:disabled) {
-  background: var(--button-primary-hover, #9579f0);
-}
-
-.research-panel__search-button:disabled {
-  background: var(--button-disabled, #404040);
-  color: var(--disabled-text, #666);
-  cursor: not-allowed;
-}
-
-.research-panel__debug-button {
-  padding: 8px 12px;
-  background: var(--button-secondary, #2c2c2e);
-  color: var(--text-color, #e0e0e0);
-  border: 1px solid var(--border-color, #333);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.research-panel__debug-button:hover {
-  background: var(--button-secondary-hover, #3c3c3e);
-}
-
 .research-panel__content {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
-}
-
-.research-panel__loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 32px 16px;
-  gap: 16px;
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border-color, #333);
-  border-top-color: var(--primary-color, #bb86fc);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.research-panel__placeholder, 
-.research-panel__error {
-  text-align: center;
-  padding: 32px 16px;
-  color: var(--text-secondary, #aaa);
-}
-
-.research-panel__error-button {
-  margin-top: 16px;
-  padding: 8px 16px;
-  background: var(--button-primary, #7c5ddf);
-  color: var(--button-text-primary, #ffffff);
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.research-panel__error-button:hover {
-  background: var(--button-primary-hover, #9579f0);
-}
-
-.document-card {
-  background: var(--surface-color-secondary, #2c2c2e);
-  border-radius: 6px;
-  margin-bottom: 16px;
-  overflow: hidden;
-  border: 1px solid var(--border-color, #333);
-}
-
-.document-card__header {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color, #333);
-}
-
-.document-card__title {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.document-card__meta {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--text-secondary, #aaa);
-}
-
-.document-card__content {
-  padding: 16px;
-  border-bottom: 1px solid var(--border-color, #333);
-}
-
-.document-card__text {
-  margin-bottom: 16px;
-  line-height: 1.5;
-}
-
-/* Remove the duplicate hyperlink styling and use a class instead */
-:deep(.document-card__text) {
-  /* This will apply the markdown-content styling to the document text */
-  composes: markdown-content from global;
-}
-
-.document-card__citation {
-  background: var(--background-color, #121212);
-  padding: 12px;
-  border-radius: 4px;
-  font-size: 13px;
-}
-
-.document-card__citation h4 {
-  margin: 0 0 8px 0;
-  font-size: 14px;
-}
-
-.document-card__citation p {
-  margin: 0 0 8px 0;
-}
-
-.document-card__copy-button {
-  padding: 4px 8px;
-  background: var(--button-secondary, #2c2c2e);
-  border: 1px solid var(--border-color, #333);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--text-color, #e0e0e0);
-}
-
-.document-card__copy-button:hover {
-  background: var(--button-secondary-hover, #3c3c3e);
-}
-
-.document-card__actions {
-  display: flex;
-  padding: 12px 16px;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.document-card__button {
-  padding: 6px 12px;
-  background: var(--button-secondary, #2c2c2e);
-  border: 1px solid var(--border-color, #333);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--text-color, #e0e0e0);
-  transition: background-color 0.2s ease;
-}
-
-.document-card__button:hover {
-  background: var(--button-secondary-hover, #3c3c3e);
 }
 
 @media (max-width: 768px) {
@@ -658,85 +357,5 @@ const debugVectorStore = async () => {
     max-height: 100%;
     border-radius: 0;
   }
-}
-
-.research-panel__help {
-  background: var(--surface-color-secondary, #2c2c2e);
-  border-radius: 6px;
-  padding: 16px;
-  margin-bottom: 16px;
-  border: 1px solid var(--border-color, #333);
-}
-
-/* Remove the duplicate hyperlink styling and use a class instead */
-:deep(.research-panel__help) {
-  /* This will apply the markdown-content styling to the help section */
-  composes: markdown-content from global;
-}
-
-.research-panel__help h3 {
-  margin: 0 0 12px 0;
-  font-size: 16px;
-  color: var(--primary-color, #bb86fc);
-}
-
-.research-panel__help p {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.research-panel__help ul {
-  margin: 0 0 16px 0;
-  padding-left: 20px;
-}
-
-.research-panel__help li {
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-
-.research-panel__help-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.research-panel__help-button {
-  padding: 6px 12px;
-  background: var(--button-primary, #7c5ddf);
-  color: var(--button-text-primary, #ffffff);
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: background-color 0.2s ease;
-}
-
-.research-panel__help-button:hover {
-  background: var(--button-primary-hover, #9579f0);
-}
-
-.research-panel__tip {
-  font-size: 13px;
-  color: var(--text-secondary, #aaa);
-  margin-top: 12px;
-}
-
-.no-results {
-  text-align: center;
-  padding: 32px 16px;
-  color: var(--text-secondary, #aaa);
-}
-
-/* Remove the duplicate hyperlink styling and use a class instead */
-:deep(.no-results) {
-  /* This will apply the markdown-content styling to the no results section */
-  composes: markdown-content from global;
-}
-
-.search-tip {
-  font-size: 13px;
-  color: var(--text-secondary, #aaa);
-  margin-top: 12px;
 }
 </style>

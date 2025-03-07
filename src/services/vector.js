@@ -6,6 +6,8 @@
 const { OpenAI } = require('openai');
 const { BaseService } = require('./base');
 const { createLLMProviderError, createNetworkError } = require('../utils');
+const { StorageService } = require('./storage');
+const debug = require('debug')('chatbot:vector');
 
 // Initialize OpenAI client for embeddings
 const openai = process.env.NODE_ENV === 'test' ? 
@@ -20,6 +22,15 @@ const openai = process.env.NODE_ENV === 'test' ?
   new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
   });
+
+// Log OpenAI client initialization status
+if (process.env.NODE_ENV !== 'test') {
+  if (process.env.OPENAI_API_KEY) {
+    debug('OpenAI client initialized with API key');
+  } else {
+    debug('WARNING: OpenAI API key is missing or empty');
+  }
+}
 
 // In-memory vector store for development
 // In production, this would be replaced with a proper vector database like Pinecone or Weaviate
@@ -323,27 +334,6 @@ class VectorService extends BaseService {
   }
 
   /**
-   * Load vectors from storage
-   * @returns {Promise<void>}
-   * @private
-   */
-  async _loadVectors() {
-    try {
-      this.log('Loading vectors from storage');
-      
-      // In a real implementation, this would load from a database or file
-      // For now, we're just using in-memory storage
-      
-      this.log(`Loaded ${vectorStore.vectors.length} vectors from storage`);
-    } catch (error) {
-      this.logError('Error loading vectors from storage', error);
-      
-      // Don't throw here, just log the error
-      // We'll start with an empty vector store
-    }
-  }
-
-  /**
    * Save vectors to storage
    * @returns {Promise<void>}
    * @private
@@ -352,14 +342,61 @@ class VectorService extends BaseService {
     try {
       this.log(`Saving ${vectorStore.vectors.length} vectors to storage`);
       
-      // In a real implementation, this would save to a database or file
-      // For now, we're just using in-memory storage
+      // Create a storage service instance
+      const storage = new StorageService();
+      
+      // Serialize the vector store to JSON before saving
+      const serializedData = JSON.stringify(vectorStore);
+      
+      // Save vectors to storage
+      await storage.setItem('vector-store', serializedData);
       
       this.log('Vectors saved successfully');
     } catch (error) {
       this.logError('Error saving vectors to storage', error);
+      throw createNetworkError(`Error saving vectors to storage: ${error.message}`, error);
+    }
+  }
+
+  /**
+   * Load vectors from storage
+   * @returns {Promise<void>}
+   * @private
+   */
+  async _loadVectors() {
+    try {
+      this.log('Loading vectors from storage');
+      
+      // Create a storage service instance
+      const storage = new StorageService();
+      
+      // Try to load vectors from storage
+      try {
+        const serializedData = await storage.getItem('vector-store');
+        if (serializedData) {
+          // Parse the JSON data
+          const storedVectors = JSON.parse(serializedData);
+          if (storedVectors && storedVectors.vectors && Array.isArray(storedVectors.vectors)) {
+            vectorStore = storedVectors;
+            this.log(`Loaded ${vectorStore.vectors.length} vectors from storage`);
+          } else {
+            this.log('No vectors found in storage, starting with empty vector store');
+          }
+        } else {
+          this.log('No vectors found in storage, starting with empty vector store');
+        }
+      } catch (error) {
+        if (error.code === 'ENOENT') {
+          this.log('No vector store file found, starting with empty vector store');
+        } else {
+          throw error;
+        }
+      }
+    } catch (error) {
+      this.logError('Error loading vectors from storage', error);
       
       // Don't throw here, just log the error
+      // We'll start with an empty vector store
     }
   }
 }

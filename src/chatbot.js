@@ -3,18 +3,24 @@
  * Main entry point for the SIP Assistant server
  */
 
+// Load environment variables first, before any other imports
 const path = require('path');
 const fs = require('fs');
-const { ServerService } = require('./services/server');
-const { ApiService } = require('./services/api');
-
-// Load environment variables
 const envPath = path.join(__dirname, '..', '.env');
 if (!fs.existsSync(envPath)) {
   console.error('.env file not found at:', envPath);
   process.exit(1);
 }
 require('dotenv').config({ path: envPath });
+
+// Now that environment variables are loaded, import services
+const { ServerService } = require('./services/server');
+const { ApiService } = require('./services/api');
+const debug = require('debug')('chatbot:main');
+
+// Log environment status
+debug(`Starting server in ${process.env.NODE_ENV} mode`);
+debug(`OpenAI API key exists: ${!!process.env.OPENAI_API_KEY}`);
 
 // Create server service
 const serverService = new ServerService({

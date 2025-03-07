@@ -33,6 +33,10 @@ import ProviderSettings from './settings/ProviderSettings.vue';
 import DataManagementSettings from './settings/DataManagementSettings.vue';
 import SystemSettings from './settings/SystemSettings.vue';
 
+/**
+ * Modal component for application settings
+ * @component
+ */
 export default {
   name: 'SettingsModal',
   components: {
@@ -41,28 +45,59 @@ export default {
     SystemSettings
   },
   props: {
+    /**
+     * Whether the modal is visible
+     */
     show: {
       type: Boolean,
       required: true
     }
   },
-  emits: ['close'],
+  /**
+   * Events emitted by the component
+   */
+  emits: [
+    /**
+     * Emitted when the modal is closed
+     * @event close
+     */
+    'close'
+  ],
   setup(props, { emit }) {
-    const status = ref(null);
     const dataManagementSettings = ref(null);
+    const status = ref(null);
+    let statusTimeout = null;
 
+    /**
+     * Handle status updates from child components
+     * @param {Object} statusData - The status data
+     * @param {string} statusData.message - The status message
+     * @param {string} statusData.type - The status type (info, success, error)
+     */
+    const handleStatusUpdate = (statusData) => {
+      status.value = statusData;
+      
+      // Clear previous timeout if exists
+      if (statusTimeout) {
+        clearTimeout(statusTimeout);
+      }
+      
+      // Auto-clear status after 5 seconds unless it's an error
+      if (statusData.type !== 'error') {
+        statusTimeout = setTimeout(() => {
+          status.value = null;
+        }, 5000);
+      }
+    };
+
+    /**
+     * Close the modal and emit the close event
+     */
     const closeModal = () => {
       if (dataManagementSettings.value) {
         dataManagementSettings.value.cleanup();
       }
       emit('close');
-    };
-
-    const handleStatusUpdate = (statusData) => {
-      status.value = statusData;
-      setTimeout(() => {
-        status.value = null;
-      }, 3000);
     };
 
     onUnmounted(() => {

@@ -4,7 +4,7 @@
     <div class="controls">
       <button 
         class="mode-toggle"
-        @click="$emit('toggle-mode')"
+        @click="toggleMode"
         :class="{ 'active': isInterviewMode }"
         aria-label="Toggle Interview Mode"
       >
@@ -17,7 +17,7 @@
       </button>
       <button 
         class="settings-button"
-        @click="$emit('toggle-settings')"
+        @click="openSettings"
         aria-label="Settings"
       >
         <svg class="settings-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -35,13 +35,24 @@
 <script setup>
 import { defineProps, defineEmits, computed } from 'vue';
 
+/**
+ * Header component for the chat interface
+ * @component
+ */
+
 // Define props
 const props = defineProps({
+  /**
+   * Whether the settings modal is visible
+   */
   showSettings: {
     type: Boolean,
     required: true,
     default: false
   },
+  /**
+   * Whether the chat is in interview mode
+   */
   isInterviewMode: {
     type: Boolean,
     required: false,
@@ -50,10 +61,39 @@ const props = defineProps({
 });
 
 // Define emits
-defineEmits(['toggle-settings', 'toggle-mode']);
+/**
+ * Events emitted by the component
+ */
+const emit = defineEmits([
+  /**
+   * Emitted when the settings button is clicked
+   * @event open-settings
+   */
+  'open-settings',
+  
+  /**
+   * Emitted when the mode toggle button is clicked
+   * @event toggle-mode
+   */
+  'toggle-mode'
+]);
 
 // Computed
 const isDevelopment = computed(() => process.env.NODE_ENV === 'development');
+
+/**
+ * Open the settings modal
+ */
+const openSettings = () => {
+  emit('open-settings');
+};
+
+/**
+ * Toggle the chat mode
+ */
+const toggleMode = () => {
+  emit('toggle-mode');
+};
 </script>
 
 <style scoped>

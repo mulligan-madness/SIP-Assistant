@@ -19,19 +19,37 @@ import { marked } from 'marked';
 import Prism from 'prismjs';
 
 // Define props
+/**
+ * Message component for displaying chat messages
+ * @component
+ */
 const props = defineProps({
+  /**
+   * The content of the message
+   */
   content: {
     type: String,
-    required: true
+    required: true,
+    validator: function(value) {
+      return value.trim().length > 0;
+    }
   },
+  /**
+   * The type of message (user or bot)
+   */
   type: {
     type: String,
     required: true,
-    validator: (value) => ['user', 'bot'].includes(value)
+    validator: (value) => ['user', 'bot', 'system'].includes(value)
   }
 });
 
 // Define emits
+/**
+ * Emitted when the user copies the message content
+ * @event copy
+ * @property {string} content - The content being copied
+ */
 const emit = defineEmits(['copy']);
 
 /**

@@ -21,8 +21,16 @@
 <script setup>
 import { ref, defineProps, defineEmits, onMounted } from 'vue';
 
+/**
+ * Component for inputting and sending chat messages
+ * @component
+ */
+
 // Define props
 const props = defineProps({
+  /**
+   * Whether the chat is currently loading/processing a message
+   */
   isLoading: {
     type: Boolean,
     required: true,
@@ -31,6 +39,11 @@ const props = defineProps({
 });
 
 // Define emits
+/**
+ * Emitted when a message is sent
+ * @event send
+ * @property {string} message - The message text being sent
+ */
 const emit = defineEmits(['send']);
 
 // Local state
